@@ -50,9 +50,8 @@ def train_epoch(model, optimizer, X_train, B_train_cpu, loss_fn, batch_size, dev
     for X_batch, F_batch, B_batch in batches:
         optimizer.zero_grad()
 
-        X_batch_shaped = X_batch.unsqueeze(1)
+        y_hat = model(X_batch.unsqueeze(1) * F_batch.unsqueeze(1)).squeeze(1)
 
-        y_hat = model(X_batch_shaped * F_batch.unsqueeze(1)).squeeze(1)
         batch_loss = loss_fn(y_hat * B_batch, X_batch * B_batch)
 
         batch_loss.backward()
