@@ -24,9 +24,6 @@ file_path = 'ml-latest-small/ratings.csv'
 # X1 - ratings with a percentage of them masked for testing;
 # B0 - bitmask for the available ratings (1) and the missing ratings (0);
 # B1 - bitmask for the available ratings without the ones we will be using for testing.
-X0, B0 = load_movielens_data(file_path, mask_percentage=mask_percentage, seed=seed)
-
-
 X0, X1, B0, B1 = load_movielens_data(file_path, mask_percentage=mask_percentage, seed=seed)
 # print(X0)
 # Normalize and fill the user-movie matrix.
