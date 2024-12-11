@@ -61,9 +61,7 @@ def test_model(model, X_train, X_test, B_eval, loss_fn, batch_size, user_means, 
 
     print(f"Test Loss (MSE) z-scored: {test_loss}")
     print(f"Test RMSE on 1-5 scale: {rmse}")
-
     print(f"Predictions: {test_predictions}")
-
     print(f"Actuals: {test_actuals}")
 
     plot_predictions_vs_actuals(test_predictions, test_actuals)

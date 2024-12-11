@@ -9,7 +9,7 @@ from utils.covariance_utils import compute_covariance_matrix
 from models.gnn_model import MovieLensGNN
 from constants import *
 from utils.testing_utils import test_model
-from utils.eval_utils import evaluate_model
+from utils.val_utils import validate_model
 from utils.training_utils import train_epoch
 from utils.plot_utils import plot_training_validation_performance
 
@@ -29,18 +29,15 @@ X0, B0 = load_movielens_data(file_path)
 
 
 X1, B1, X_test, B_test = split_test_set(X0, B0, mask_percentage=mask_percentage, seed=seed)
-
 X_train, B_train, X_val, B_val = split_val_set(X1, B1, mask_percentage=mask_percentage, seed=seed)
 
 
 # Normalize and fill the user-movie matrix.
 Z_train, user_means, user_stds = normalize_and_fill_user_movie_matrix(X_train)
-
 Z_train = Z_train.to_numpy()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}.")
-
 
 #GSO gpu!
 C = compute_covariance_matrix(Z_train)
@@ -56,10 +53,10 @@ Z_train = torch.tensor(Z_train, dtype=torch.float32).to(device)
 # B_train = torch.tensor(B1, dtype=torch.int).to(device)
 
 X_val = torch.tensor(X_val, dtype=torch.float32).to(device)
-B_val = torch.tensor(B_val, dtype=torch.int).to(device)
+# B_val = torch.tensor(B_val, dtype=torch.int).to(device)
 
 X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
-B_test = torch.tensor(B_test, dtype=torch.int).to(device)
+# B_test = torch.tensor(B_test, dtype=torch.int).to(device)
 
 optimizer = optim.Adam(gnn_model.parameters(), lr=lr) # TODO: try some different lr (0.01) | NO need to grid search.
 loss_fn = nn.MSELoss()
@@ -69,11 +66,11 @@ val_losses = []
 
 
 for epoch in range(n_epochs):
-    train_loss = train_epoch(gnn_model, optimizer, X_train, B1, loss_fn, batch_size, device)
+    train_loss = train_epoch(gnn_model, optimizer, X_train, B_train, loss_fn, batch_size, device)
     train_losses.append(train_loss)
 
-    eval_loss = evaluate_model(gnn_model, X_train, B1, loss_fn, batch_size, device)
-    val_losses.append(eval_loss)
+    val_loss = validate_model(gnn_model, X_train, B1, loss_fn, batch_size, device)
+    val_losses.append(val_loss)
 
     print(f'Epoch {epoch + 1}/{n_epochs}, Train Loss: {train_loss}, Eval Loss: {eval_loss}')
 
