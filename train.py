@@ -30,8 +30,8 @@ X0, B0 = load_movielens_data(file_path)
 
 
 
-X1, B1, X_test, B_test = split_test_set(X0, B0, mask_percentage=mask_percentage, seed=seed)
-X_train, B_train, X_val, B_val = split_val_set(X1, B1, mask_percentage=mask_percentage, seed=seed)
+X1, B1, X_test, B_test = split_test_set(X0, B0, mask_percentage=1/10, seed=seed)
+X_train, B_train, X_val, B_val = split_val_set(X1, B1, mask_percentage=1/9, seed=seed)
 
 
 # Normalize and fill the user-movie matrix.
@@ -60,10 +60,10 @@ Z_val = torch.tensor(Z_val, dtype=torch.float32).to(device)
 X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
 # B_test = torch.tensor(B_test, dtype=torch.int).to(device)
 
-dimNodeSignals_options = [[1, 16, 1], [1, 32, 1], [1, 64, 1]]
-nTaps_options = [2, 3]
-dimLayersMLP_options = [[1, 1], [1, 16, 1], [1, 64, 1]]
-best_hyperparameters = None
+dimNodeSignals_options = [[1, 16, 1], [1, 64, 1]]
+nTaps_options = [2, 3, 4]
+dimLayersMLP_options = [[1, 16, 1], [1, 16, 16, 1]]
+best_hyperparams = [[1, 16, 1], 2, [1, 16, 1]]
 best_val_loss = float('inf')
 
 for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps_options, dimLayersMLP_options):
@@ -94,6 +94,7 @@ for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps
 
     # plot_training_validation_performance(train_losses, val_losses, n_epochs)
 
-    # test_model(gnn_model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, user_stds, device)
+gnn_model_best = MovieLensGNN(C, input_dim, best_hyperparams[0], best_hyperparams[1], best_hyperparams[2]).to(device)
+test_model(gnn_model_best , Z_train, X_test, B_test, batch_size, user_means, user_stds, device)
 
 

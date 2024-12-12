@@ -1,7 +1,7 @@
 mask_percentage=0.2
 n_epochs = 10
 batch_size = 128
-lr = 0.01
+lr = 0.001
 forward_ratio = 0.6
 seed = 42
 

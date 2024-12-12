@@ -18,7 +18,7 @@ def create_testing_batches(X_train, X_test, b, batch_size):
     return batches
 
 
-def test_model(model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, user_stds, device):
+def test_model(model, Z_train, X_test, B_test, batch_size, user_means, user_stds, device):
     model.eval()
 
     all_predictions = []
