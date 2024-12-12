@@ -102,7 +102,7 @@ def normalize_and_fill_user_movie_matrix(masked_matrix):
 
     normalized_matrix_filled = normalized_matrix.fillna(0)
 
-    return normalized_matrix_filled, user_mean, user_std
+    return normalized_matrix_filled, np.array(user_mean), np.array(user_std)
 
 
 def normalize_and_fill_set(X_set, user_means, user_stds):

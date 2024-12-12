@@ -20,7 +20,6 @@ def create_testing_batches(X_train, X_test, b, batch_size):
 
 def test_model(model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, user_stds, device):
     model.eval()
-    test_loss = 0.0
 
     all_predictions = []
     all_actuals = []
@@ -36,14 +35,8 @@ def test_model(model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, 
             y_hat_masked = (y_hat * B_test_batch).cpu().numpy()
             actual_masked = (X_test_batch * B_test_batch).cpu().numpy()
 
-            # batch_loss = loss_fn(y_hat_masked, actual_masked)
-            # test_loss += batch_loss.item()
-
             all_predictions.append(y_hat_masked)
             all_actuals.append(actual_masked)
-
-            # print(f"y_hat_masked: {y_hat_masked}")
-            # print(f"actual_masked: {actual_masked}")
 
     all_predictions = np.vstack(all_predictions)
     all_actuals = np.vstack(all_actuals)
@@ -57,7 +50,6 @@ def test_model(model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, 
     # rmse = loss_fn_denorm(torch.tensor(denormalize_predictions), torch.tensor(denormalize_actuals)).item()
     rmse = np.sqrt(np.mean(np.square(test_predictions - test_actuals)))
 
-    print(f"Test Loss (MSE) z-scored: {test_loss}")
     print(f"Test RMSE on 1-5 scale: {rmse}")
     print(f"Predictions: {test_predictions}")
     print(f"Actuals: {test_actuals}")

@@ -29,8 +29,8 @@ def validate_model(model, Z_train, B_train, Z_val, B_val, loss_fn, batch_size, d
 
             y_hat = model(Z_train_batch.unsqueeze(1)).squeeze(1)
 
-            batch_loss = loss_fn(y_hat * B_train_batch,
-                                 Z_val_batch * B_train_batch)
+            batch_loss = loss_fn(y_hat * B_val_batch,
+                                 Z_val_batch * B_val_batch)
 
             test_loss += batch_loss.item()
 

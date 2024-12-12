@@ -12,6 +12,7 @@ from utils.testing_utils import test_model
 from utils.val_utils import validate_model
 from utils.training_utils import train_epoch
 from utils.plot_utils import plot_training_validation_performance
+from itertools import product
 
 #TODO: set the seed for torch for replicability. But RUN WITHOUT SEED!
 np.random.seed(seed)
@@ -49,8 +50,6 @@ C = torch.tensor(C, dtype=torch.float32).to(device)
 
 input_dim = Z_train.shape[1]
 
-# gpu!
-gnn_model = MovieLensGNN(C, input_dim).to(device)
 
 Z_train = torch.tensor(Z_train, dtype=torch.float32).to(device)
 # B_train = torch.tensor(B1, dtype=torch.int).to(device)
@@ -61,24 +60,40 @@ Z_val = torch.tensor(Z_val, dtype=torch.float32).to(device)
 X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
 # B_test = torch.tensor(B_test, dtype=torch.int).to(device)
 
-optimizer = optim.Adam(gnn_model.parameters(), lr=lr) # TODO: try some different lr (0.01) | NO need to grid search.
-loss_fn = nn.MSELoss()
+dimNodeSignals_options = [[1, 16, 1], [1, 32, 1], [1, 64, 1]]
+nTaps_options = [2, 3]
+dimLayersMLP_options = [[1, 1], [1, 16, 1], [1, 64, 1]]
+best_hyperparameters = None
+best_val_loss = float('inf')
 
-train_losses = []
-val_losses = []
+for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps_options, dimLayersMLP_options):
 
+    # gpu!
+    gnn_model = MovieLensGNN(C, input_dim, dimNodeSignals, nTaps, dimLayersMLP).to(device)
+    optimizer = optim.Adam(gnn_model.parameters(), lr=lr) # TODO: try some different lr (0.01) | NO need to grid search.
+    loss_fn = nn.MSELoss()
 
-for epoch in range(n_epochs):
-    train_loss = train_epoch(gnn_model, optimizer, Z_train, B_train, loss_fn, batch_size, device)
-    train_losses.append(train_loss)
+    # train_losses = []
+    # val_losses = []
+    train_loss, val_loss = 0, 0
+    print(f"Training with hyperparameters: {dimNodeSignals}, {nTaps}, {dimLayersMLP}")
 
-    val_loss = validate_model(gnn_model, Z_train, B_train, Z_val, B_val, loss_fn, batch_size, device)
-    val_losses.append(val_loss)
+    for epoch in range(n_epochs):
+        train_loss = train_epoch(gnn_model, optimizer, Z_train, B_train, loss_fn, batch_size, device)
+        # train_losses.append(train_loss)
 
-    print(f'Epoch {epoch + 1}/{n_epochs}, Train Loss: {train_loss}, Val Loss: {val_loss}')
+        val_loss = validate_model(gnn_model, Z_train, B_train, Z_val, B_val, loss_fn, batch_size, device)
+        # val_losses.append(val_loss)
 
-plot_training_validation_performance(train_losses, val_losses, n_epochs)
+        print(f'Epoch {epoch + 1}/{n_epochs}, Train Loss: {train_loss}, Val Loss: {val_loss}')
 
-test_model(gnn_model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, user_stds, device)
+    if val_loss < best_val_loss:
+        best_val_loss = val_loss
+        best_hyperparams = (dimNodeSignals, nTaps, dimLayersMLP)
+        print(f"Best hyperparameters: {best_hyperparams} with val loss: {best_val_loss}")
+
+    # plot_training_validation_performance(train_losses, val_losses, n_epochs)
+
+    # test_model(gnn_model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, user_stds, device)
 
 
