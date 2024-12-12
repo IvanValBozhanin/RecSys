@@ -104,3 +104,8 @@ def normalize_and_fill_user_movie_matrix(masked_matrix):
 
     return normalized_matrix_filled, user_mean, user_std
 
+
+def normalize_and_fill_set(X_set, user_means, user_stds):
+    Z_val = (X_set - user_means) / user_stds
+
+    return np.nan_to_num(Z_val)

@@ -22,20 +22,20 @@ def random_training_split(B1, forward_ratio):
     return f_mask.reshape(B1.shape), b_mask.reshape(B1.shape)
 
 
-def create_batches(X, forward, backward, batch_size):
-    n = X.shape[0]
+def create_batches(Z, forward, backward, batch_size):
+    n = Z.shape[0]
     batches = []
 
     for i in range(0, n, batch_size):
-        X_batch = X[i: i + batch_size, :]
+        Z_batch = Z[i: i + batch_size, :]
         forward_batch = forward[i: i + batch_size, :]
         backward_batch = backward[i: i + batch_size, :]
-        batches.append((X_batch, forward_batch, backward_batch))
+        batches.append((Z_batch, forward_batch, backward_batch))
 
     return batches
 
 
-def train_epoch(model, optimizer, X_train, B_train_cpu, loss_fn, batch_size, device):
+def train_epoch(model, optimizer, Z_train, B_train_cpu, loss_fn, batch_size, device):
 
     model.train()
     epoch_loss = 0.0
@@ -45,15 +45,15 @@ def train_epoch(model, optimizer, X_train, B_train_cpu, loss_fn, batch_size, dev
     B_forward_tensor = torch.tensor(B_forward, dtype=torch.int).to(device)
     B_backward_tensor = torch.tensor(B_backward, dtype=torch.int).to(device)
 
-    batches = create_batches(X_train, B_forward_tensor, B_backward_tensor, batch_size)
+    batches = create_batches(Z_train, B_forward_tensor, B_backward_tensor, batch_size)
 
-    for X_batch, B_forward_batch, B_backward_batch in batches:
+    for Z_batch, B_forward_batch, B_backward_batch in batches:
         optimizer.zero_grad()
 
-        y_hat = model(X_batch.unsqueeze(1) * B_forward_batch.unsqueeze(1)).squeeze(1)
+        y_hat = model(Z_batch.unsqueeze(1)).squeeze(1)
 
-        batch_loss = loss_fn(y_hat * B_backward_batch,
-                             X_batch * B_backward_batch)
+        batch_loss = loss_fn(y_hat,
+                             Z_batch)
 
         batch_loss.backward()
         optimizer.step()
