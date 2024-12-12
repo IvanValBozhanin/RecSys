@@ -18,23 +18,23 @@ def create_testing_batches(X_train, X_test, b, batch_size):
     return batches
 
 
-def test_model(model, X_train, X_test, B_eval, loss_fn, batch_size, user_means, user_stds, device):
+def test_model(model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, user_stds, device):
     model.eval()
     test_loss = 0.0
 
     all_predictions = []
     all_actuals = []
 
-    batches = create_testing_batches(X_train, X_test, B_eval, batch_size)
+    B_test_tensor = torch.tensor(B_test, dtype=torch.int).to(device)
+
+    batches = create_testing_batches(Z_train, X_test, B_test_tensor, batch_size)
 
     with torch.no_grad():
-        for X_train_batch, X_test_batch, B_batch in batches:
-            X_batch_shaped = X_train_batch.unsqueeze(1)
-            y_hat = model(X_batch_shaped).squeeze(1)
+        for Z_train_batch, X_test_batch, B_test_batch in batches:
+            y_hat = model(Z_train_batch.unsqueeze(1)).squeeze(1)
 
-            y_hat_masked = (y_hat * B_batch).cpu().numpy()
-
-            actual_masked = (X_test_batch * B_batch).cpu().numpy()
+            y_hat_masked = (y_hat * B_test_batch).cpu().numpy()
+            actual_masked = (X_test_batch * B_test_batch).cpu().numpy()
 
             # batch_loss = loss_fn(y_hat_masked, actual_masked)
             # test_loss += batch_loss.item()
@@ -47,11 +47,9 @@ def test_model(model, X_train, X_test, B_eval, loss_fn, batch_size, user_means, 
 
     all_predictions = np.vstack(all_predictions)
     all_actuals = np.vstack(all_actuals)
-
-    positions_non_zero_non_nan = np.where((all_actuals != 0.0) & (~np.isnan(all_actuals)))
-
     denormalize_predictions = denormalize_ratings(all_predictions, user_means, user_stds)
 
+    positions_non_zero_non_nan = np.where((all_actuals != 0.0) & (~np.isnan(all_actuals)))
     test_predictions = denormalize_predictions[positions_non_zero_non_nan]
     test_actuals = all_actuals[positions_non_zero_non_nan]
 

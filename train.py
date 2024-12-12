@@ -28,6 +28,7 @@ file_path = 'ml-latest-small/ratings.csv'
 X0, B0 = load_movielens_data(file_path)
 
 
+
 X1, B1, X_test, B_test = split_test_set(X0, B0, mask_percentage=mask_percentage, seed=seed)
 X_train, B_train, X_val, B_val = split_val_set(X1, B1, mask_percentage=mask_percentage, seed=seed)
 
@@ -37,9 +38,6 @@ Z_train, user_means, user_stds = normalize_and_fill_user_movie_matrix(X_train) #
 Z_train = Z_train.to_numpy()
 
 Z_val = normalize_and_fill_set(X_val, user_means, user_stds)
-
-print(f"Z_train: {Z_train}")
-print(f"Z_val: {Z_val}")
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}.")
@@ -81,6 +79,6 @@ for epoch in range(n_epochs):
 
 plot_training_validation_performance(train_losses, val_losses, n_epochs)
 
-test_model(gnn_model, X_train, X_test, B_eval, loss_fn, batch_size, user_means, user_stds, device)
+test_model(gnn_model, Z_train, X_test, B_test, loss_fn, batch_size, user_means, user_stds, device)
 
 
