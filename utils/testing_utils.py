@@ -54,5 +54,5 @@ def test_model(model, Z_train, X_test, B_test, batch_size, user_means, user_stds
     print(f"Predictions: {test_predictions}")
     print(f"Actuals: {test_actuals}")
 
-    plot_predictions_vs_actuals(test_predictions, test_actuals)
+    # plot_predictions_vs_actuals(test_predictions, test_actuals)
 

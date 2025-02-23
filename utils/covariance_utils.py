@@ -9,6 +9,6 @@ def compute_covariance_matrix(Z1):
 
     N_items = Z1.shape[0]
 
-    C = (1 / N_items) * np.matmul(Z1.T, Z1)
+    C = (10 / N_items) * np.matmul(Z1.T, Z1)
 
     return C

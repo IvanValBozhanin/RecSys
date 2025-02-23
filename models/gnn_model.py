@@ -20,7 +20,7 @@ class MovieLensGNN(nn.Module):
         self.gnn = archit.SelectionGNN(dimNodeSignals, # list: 1st element is the #Feature; after that - hidden dimentions of each filter; last:  output size (1 rating per user per movie)
                                        nFilterTaps, # number of k per each layer
                                        True,
-                                       nn.ReLU,
+                                       nn.LeakyReLU, # todo: try leaky-relu.
                                        [input_dim] * len(nFilterTaps), # input_dim is the number of features
                                        gml.NoPool, # pooling layer not needed for now.
                                        [1, 1],

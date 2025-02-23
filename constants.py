@@ -1,5 +1,4 @@
-mask_percentage=0.2
-n_epochs = 10
+n_epochs = 10 # todo: try 50 - 100.
 batch_size = 128
 lr = 0.001
 forward_ratio = 0.6

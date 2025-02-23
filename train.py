@@ -60,10 +60,10 @@ Z_val = torch.tensor(Z_val, dtype=torch.float32).to(device)
 X_test = torch.tensor(X_test, dtype=torch.float32).to(device)
 # B_test = torch.tensor(B_test, dtype=torch.int).to(device)
 
-dimNodeSignals_options = [[1, 16, 1], [1, 64, 1]]
-nTaps_options = [2, 3, 4]
-dimLayersMLP_options = [[1, 16, 1], [1, 16, 16, 1]]
-best_hyperparams = [[1, 16, 1], 2, [1, 16, 1]]
+dimNodeSignals_options = [[1, 16, 8]]
+nTaps_options = [2]
+dimLayersMLP_options = [[8, 16, 1]]
+best_hyperparams = [[1, 16, 8], 2, [8, 16, 1]]
 best_val_loss = float('inf')
 
 for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps_options, dimLayersMLP_options):
@@ -73,8 +73,7 @@ for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps
     optimizer = optim.Adam(gnn_model.parameters(), lr=lr) # TODO: try some different lr (0.01) | NO need to grid search.
     loss_fn = nn.MSELoss()
 
-    # train_losses = []
-    # val_losses = []
+
     train_loss, val_loss = 0, 0
     print(f"Training with hyperparameters: {dimNodeSignals}, {nTaps}, {dimLayersMLP}")
 
@@ -95,6 +94,7 @@ for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps
     # plot_training_validation_performance(train_losses, val_losses, n_epochs)
 
 gnn_model_best = MovieLensGNN(C, input_dim, best_hyperparams[0], best_hyperparams[1], best_hyperparams[2]).to(device)
+# TODO: WOULD BE NICE TO RE-TRAIN THE MODEL WITH THE BEST HYPERPARAMETERS ON THE WHOLE TRAINING SET.
 test_model(gnn_model_best , Z_train, X_test, B_test, batch_size, user_means, user_stds, device)
 
 

@@ -39,6 +39,7 @@ def train_epoch(model, optimizer, Z_train, B_train_cpu, loss_fn, batch_size, dev
 
     model.train()
     epoch_loss = 0.0
+    grad_norms = []
 
     B_forward, B_backward = random_training_split(B_train_cpu, forward_ratio=forward_ratio)
 
@@ -50,14 +51,23 @@ def train_epoch(model, optimizer, Z_train, B_train_cpu, loss_fn, batch_size, dev
     for Z_batch, B_forward_batch, B_backward_batch in batches:
         optimizer.zero_grad()
 
-        y_hat = model(Z_batch.unsqueeze(1)).squeeze(1)
+        y_hat = model(Z_batch.unsqueeze(1) * B_forward_batch.unsqueeze(1)).squeeze(1)
 
-        batch_loss = loss_fn(y_hat * B_backward_batch,
-                             Z_batch * B_forward_batch)
+        batch_loss = loss_fn(y_hat * B_backward_batch, # todo: B_forward_batch or B_backward_batch?
+                             Z_batch * B_backward_batch)
 
         batch_loss.backward()
         optimizer.step()
 
+        total_norm = 0.0
+        for p in model.parameters():
+            if p.grad is not None:
+                total_norm += p.grad.data.norm(2).item() ** 2
+        total_norm = total_norm ** 0.5
+        grad_norms.append(total_norm)
+
         epoch_loss += batch_loss.item()
 
+    epoch_grad_norm = sum(grad_norms) / len(grad_norms) if grad_norms else 0
+    print(f"Average Gradient Norm for epoch: {epoch_grad_norm}")
     return epoch_loss / len(batches)
