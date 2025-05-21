@@ -3,8 +3,7 @@ import matplotlib.pyplot as plt
 import time
 import pandas as pd
 import seaborn as sns
-from constants import dir_predict_actuals
-from constants import file_predict_actuals
+from constants import dir_predict_actuals, file_predict_actuals, dir_training_validation_performance, file_training_validation_performance
 
 def plot_predictions_vs_actuals(predictions, actuals, save_dir=dir_predict_actuals, filename=file_predict_actuals):
     plt.rcParams["text.usetex"] = False
@@ -29,7 +28,7 @@ def plot_predictions_vs_actuals(predictions, actuals, save_dir=dir_predict_actua
     plt.savefig(file_path)
     plt.close()
 
-def plot_training_validation_performance(train_losses, val_losses, n_epochs, save_dir=dir_predict_actuals, filename=file_predict_actuals):
+def plot_training_validation_performance(train_losses, val_losses, n_epochs, save_dir=dir_training_validation_performance, filename=file_training_validation_performance):
     plt.rcParams["text.usetex"] = False
     os.makedirs(save_dir, exist_ok=True)
 

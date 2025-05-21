@@ -1,73 +1,67 @@
+# training_utils.py
+
 import numpy as np
 import torch
 
-from constants import forward_ratio
+
+def create_user_batches(num_total_users, batch_size_of_users, shuffle=True):
+    # ... (same as before)
+    user_indices = np.arange(num_total_users)
+    if shuffle:
+        np.random.shuffle(user_indices)
+    batches_of_user_indices = []
+    for i in range(0, num_total_users, batch_size_of_users):
+        batches_of_user_indices.append(user_indices[i: i + batch_size_of_users])
+    return batches_of_user_indices
 
 
-def random_training_split(B1, forward_ratio):
-    indices = np.where(B1.flatten() == 1)[0]
-    np.random.shuffle(indices)
-
-    n = len(indices)
-
-    f_indices = indices[:int(n * forward_ratio)]
-    b_indices = indices[int(n * forward_ratio):]
-
-    f_mask = np.zeros_like(B1.flatten())
-    b_mask = np.zeros_like(B1.flatten())
-
-    f_mask[f_indices] = 1
-    b_mask[b_indices] = 1
-
-    return f_mask.reshape(B1.shape), b_mask.reshape(B1.shape)
-
-
-def create_batches(Z, forward, backward, batch_size):
-    n = Z.shape[0]
-    batches = []
-
-    for i in range(0, n, batch_size):
-        Z_batch = Z[i: i + batch_size, :]
-        forward_batch = forward[i: i + batch_size, :]
-        backward_batch = backward[i: i + batch_size, :]
-        batches.append((Z_batch, forward_batch, backward_batch))
-
-    return batches
-
-
-def train_epoch(model, optimizer, Z_train, B_train_cpu, loss_fn, batch_size, device):
-
+def train_epoch_full_graph(model, optimizer,
+                           X_features_all_users,
+                           Y_targets_all_users_norm,
+                           B_loss_mask_all_users,
+                           loss_fn, batch_size_of_users,
+                           device):  # batch_size_of_users here is for iterating, not SGD batch
     model.train()
-    epoch_loss = 0.0
-    grad_norms = []
 
-    B_forward, B_backward = random_training_split(B_train_cpu, forward_ratio=forward_ratio)
+    optimizer.zero_grad()  # Zero gradients at the start of the epoch
 
-    B_forward_tensor = torch.tensor(B_forward, dtype=torch.int).to(device)
-    B_backward_tensor = torch.tensor(B_backward, dtype=torch.int).to(device)
+    # --- Perform ONE forward pass for all users ---
+    y_hat_all_users = model(X_features_all_users)  # Shape: (num_users, num_movies_predictions)
 
-    batches = create_batches(Z_train, B_forward_tensor, B_backward_tensor, batch_size)
+    # Accumulate loss across all users/batches
+    total_loss_for_epoch_sum_reduction = torch.tensor(0.0, device=device)  # Ensure it's a tensor on the right device
+    total_masked_elements_in_epoch = 0
 
-    for Z_batch, B_forward_batch, B_backward_batch in batches:
-        optimizer.zero_grad()
+    # Iterate through user batches just to manage potential memory for loss calculation sum,
+    # but the loss is accumulated into a single tensor.
+    batches_user_indices = create_user_batches(X_features_all_users.shape[0], batch_size_of_users,
+                                               shuffle=False)  # No shuffle needed if one backward
 
-        y_hat = model(Z_batch.unsqueeze(1) * B_forward_batch.unsqueeze(1)).squeeze(1)
+    for user_idx_batch in batches_user_indices:
+        y_hat_batch = y_hat_all_users[user_idx_batch, :]
+        targets_batch = Y_targets_all_users_norm[user_idx_batch, :]
+        mask_batch = B_loss_mask_all_users[user_idx_batch, :]
 
-        batch_loss = loss_fn(y_hat * B_backward_batch, # todo: B_forward_batch or B_backward_batch?
-                             Z_batch * B_backward_batch)
+        predictions_masked = y_hat_batch * mask_batch
+        targets_masked = targets_batch * mask_batch
 
-        batch_loss.backward()
+        # loss_fn is nn.MSELoss(reduction='sum')
+        current_batch_loss_sum = loss_fn(predictions_masked, targets_masked)
+
+        num_elements_in_batch_loss = mask_batch.sum().item()
+
+        if num_elements_in_batch_loss > 0:
+            total_loss_for_epoch_sum_reduction = total_loss_for_epoch_sum_reduction + current_batch_loss_sum
+            total_masked_elements_in_epoch += num_elements_in_batch_loss
+
+    if total_masked_elements_in_epoch > 0:
+        final_epoch_loss_normalized = total_loss_for_epoch_sum_reduction / total_masked_elements_in_epoch
+
+        # Perform ONE backward pass for the entire epoch's accumulated loss
+        final_epoch_loss_normalized.backward()
         optimizer.step()
 
-        total_norm = 0.0
-        for p in model.parameters():
-            if p.grad is not None:
-                total_norm += p.grad.data.norm(2).item() ** 2
-        total_norm = total_norm ** 0.5
-        grad_norms.append(total_norm)
-
-        epoch_loss += batch_loss.item()
-
-    epoch_grad_norm = sum(grad_norms) / len(grad_norms) if grad_norms else 0
-    print(f"Average Gradient Norm for epoch: {epoch_grad_norm}")
-    return epoch_loss / len(batches)
+        return final_epoch_loss_normalized.item()
+    else:
+        print("Warning: No elements to calculate loss in the entire epoch for training.")
+        return 0.0  # Or handle as NaN or raise error

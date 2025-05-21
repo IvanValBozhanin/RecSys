@@ -1,37 +1,48 @@
 import torch
+import numpy as np
 
 
-def create_val_batches(Z_train, B_train, Z_val, B_val, batch_size):
-    n = Z_train.shape[0]
-    batches = []
-
-    for i in range(0, n, batch_size):
-        Z_train_batch = Z_train[i: i + batch_size, :]
-        B_train_batch = B_train[i: i + batch_size, :]
-        Z_val_batch = Z_val[i: i + batch_size, :]
-        B_val_batch = B_val[i: i + batch_size, :]
-        batches.append((Z_train_batch, B_train_batch, Z_val_batch, B_val_batch))
-
-    return batches
+def create_user_batches_val(num_total_users,
+                            batch_size_of_users):
+    user_indices = np.arange(num_total_users)
+    batches_of_user_indices = []
+    for i in range(0, num_total_users, batch_size_of_users):
+        batches_of_user_indices.append(user_indices[i: i + batch_size_of_users])
+    return batches_of_user_indices
 
 
-def validate_model(model, Z_train, B_train, Z_val, B_val, loss_fn, batch_size, device):
+def validate_model(model,
+                   X_features_val_users,  # (num_val_users, num_movies_features) - context
+                   Y_targets_val_users_norm,  # (num_val_users, num_movies_targets) - ground truth
+                   B_loss_mask_val_users,  # (num_val_users, num_movies_mask)
+                   loss_fn,
+                   batch_size_of_users,
+                   device):
     model.eval()
-    test_loss = 0.0
-
-    B_train_tensor = torch.tensor(B_train, dtype=torch.int).to(device)
-    B_val_tensor = torch.tensor(B_val, dtype=torch.int).to(device)
-
-    batches = create_val_batches(Z_train, B_train_tensor, Z_val, B_val_tensor, batch_size)
+    total_val_loss = 0.0
+    total_masked_elements = 0
 
     with torch.no_grad():
-        for Z_train_batch, B_train_batch, Z_val_batch, B_val_batch in batches:
+        # Model processes all validation users' features
+        y_hat_all_val_users = model(X_features_val_users)
 
-            y_hat = model(Z_train_batch.unsqueeze(1)).squeeze(1)
+        batches_user_indices = create_user_batches_val(X_features_val_users.shape[0], batch_size_of_users)
 
-            batch_loss = loss_fn(y_hat * B_val_batch,
-                                 Z_val_batch * B_val_batch)
+        for user_idx_batch in batches_user_indices:
+            y_hat_batch = y_hat_all_val_users[user_idx_batch, :]
+            targets_batch = Y_targets_val_users_norm[user_idx_batch, :]
+            mask_batch = B_loss_mask_val_users[user_idx_batch, :]
 
-            test_loss += batch_loss.item()
+            predictions_masked = y_hat_batch * mask_batch
+            targets_masked = targets_batch * mask_batch
 
-    return test_loss / len(batches)
+            batch_loss = loss_fn(predictions_masked, targets_masked)  # loss_fn uses reduction='sum'
+
+            num_elements_in_loss = mask_batch.sum().item()
+            if num_elements_in_loss > 0:
+                total_val_loss += batch_loss.item()
+                total_masked_elements += num_elements_in_loss
+
+    if total_masked_elements == 0:
+        return float('inf')
+    return total_val_loss / total_masked_elements
