@@ -1,70 +1,68 @@
 import numpy as np
 import torch
 
-from utils.data_postprocessing import denormalize_ratings
+from utils.data_postprocessing import denormalize_ratings_user_x_movie
 from utils.plot_utils import plot_predictions_vs_actuals
 
 
-def create_testing_batches(X_train, X_test, b, batch_size):
-    n = X_train.shape[0]
-    batches = []
-
-    for i in range(0, n, batch_size):
-        X_train_batch = X_train[i: i + batch_size, :]
-        X_test_batch = X_test[i: i + batch_size, :]
-        b_batch = b[i: i + batch_size, :]
-        batches.append((X_train_batch, X_test_batch, b_batch))
-
-    return batches
+def create_user_batches_test(num_total_users,
+                             batch_size_of_users):
+    user_indices = np.arange(num_total_users)
+    batches_of_user_indices = []
+    for i in range(0, num_total_users, batch_size_of_users):
+        batches_of_user_indices.append(user_indices[i: i + batch_size_of_users])
+    return batches_of_user_indices
 
 
-def test_model(model, X_train, X_test, B_eval, loss_fn, batch_size, user_means, user_stds, device):
+def test_model(model,
+               X_features_test_users,  # (num_test_users, num_movies_features) - context
+               X_targets_test_users_original,  # (num_test_users, num_movies_targets) - original scale
+               B_mask_test_users,  # (num_test_users, num_movies_mask)
+               user_means_np,
+               user_stds_np,
+               device):  # Make sure these are 1D numpy arrays of length num_users
     model.eval()
-    test_loss = 0.0
 
-    all_predictions = []
-    all_actuals = []
-
-    batches = create_testing_batches(X_train, X_test, B_eval, batch_size)
+    all_predictions_denorm_list = []
+    all_actuals_orig_list = []
 
     with torch.no_grad():
-        for X_train_batch, X_test_batch, B_batch in batches:
-            X_batch_shaped = X_train_batch.unsqueeze(1)
-            y_hat = model(X_batch_shaped).squeeze(1)
+        # Model processes all test users' features
+        y_hat_all_test_users_norm = model(X_features_test_users)  # Output: (num_test_users, num_movies)
 
-            y_hat_masked = (y_hat * B_batch).cpu().numpy()
+        # Denormalize predictions
+        # denormalize_ratings_user_x_movie needs to handle (num_users, num_movies)
+        # and user_means/stds being (num_users,)
+        predictions_denorm = denormalize_ratings_user_x_movie(
+            y_hat_all_test_users_norm.cpu().numpy(),
+            user_means_np,  # Should be (num_users,)
+            user_stds_np  # Should be (num_users,)
+        )
 
-            actual_masked = (X_test_batch * B_batch).cpu().numpy()
+        # Iterate through users to apply mask (or vectorize if careful)
+        for i in range(X_targets_test_users_original.shape[0]):  # Iterate over users
+            user_preds_denorm = predictions_denorm[i, :]
+            user_actuals_orig = X_targets_test_users_original[i, :].cpu().numpy()  # if tensor
+            user_mask = B_mask_test_users[i, :].cpu().numpy()  # if tensor
 
-            # batch_loss = loss_fn(y_hat_masked, actual_masked)
-            # test_loss += batch_loss.item()
+            relevant_preds = user_preds_denorm[user_mask == 1]
+            relevant_actuals = user_actuals_orig[user_mask == 1]
 
-            all_predictions.append(y_hat_masked)
-            all_actuals.append(actual_masked)
+            all_predictions_denorm_list.extend(relevant_preds.tolist())
+            all_actuals_orig_list.extend(relevant_actuals.tolist())
 
-            # print(f"y_hat_masked: {y_hat_masked}")
-            # print(f"actual_masked: {actual_masked}")
+    test_predictions_flat = np.array(all_predictions_denorm_list)
+    test_actuals_flat = np.array(all_actuals_orig_list)
 
-    all_predictions = np.vstack(all_predictions)
-    all_actuals = np.vstack(all_actuals)
+    if len(test_actuals_flat) == 0:
+        print("No test items to evaluate!")
+        return float('nan')
 
-    positions_non_zero_non_nan = np.where((all_actuals != 0.0) & (~np.isnan(all_actuals)))
+    rmse = np.sqrt(np.mean(np.square(test_predictions_flat - test_actuals_flat)))
 
-    denormalize_predictions = denormalize_ratings(all_predictions, user_means, user_stds)
+    print(f"Test RMSE on 1-5 scale: {rmse:.4f}")
+    # print(f"Predictions (sample): {test_predictions_flat[:20]}")
+    # print(f"Actuals (sample): {test_actuals_flat[:20]}")
 
-    test_predictions = denormalize_predictions[positions_non_zero_non_nan]
-    test_actuals = all_actuals[positions_non_zero_non_nan]
-
-
-    # rmse = loss_fn_denorm(torch.tensor(denormalize_predictions), torch.tensor(denormalize_actuals)).item()
-    rmse = np.sqrt(np.mean(np.square(test_predictions - test_actuals)))
-
-    print(f"Test Loss (MSE) z-scored: {test_loss}")
-    print(f"Test RMSE on 1-5 scale: {rmse}")
-
-    print(f"Predictions: {test_predictions}")
-
-    print(f"Actuals: {test_actuals}")
-
-    plot_predictions_vs_actuals(test_predictions, test_actuals)
-
+    plot_predictions_vs_actuals(test_predictions_flat, test_actuals_flat)
+    return rmse

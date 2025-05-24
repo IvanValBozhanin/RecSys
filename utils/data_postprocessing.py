@@ -2,10 +2,12 @@ import numpy as np
 
 
 # denormalize the prediction matrix
-def denormalize_ratings(prediction_matrix, user_means, user_stds):
-    means_expanded = np.expand_dims(user_means, axis=0)
-    stds_expanded = np.expand_dims(user_stds, axis=0)
+def denormalize_ratings_user_x_movie(prediction_matrix_norm_users_x_movies, # (num_users, num_movies)
+                                     user_means_1d,  # 1D array of shape (num_users,)
+                                     user_stds_1d):  # 1D array of shape (num_users,)
 
-    denormalized_matrix = (prediction_matrix * stds_expanded) + means_expanded
+    means_expanded = user_means_1d[:, np.newaxis]
+    stds_expanded = user_stds_1d[:, np.newaxis]
 
+    denormalized_matrix = (prediction_matrix_norm_users_x_movies * stds_expanded) + means_expanded
     return denormalized_matrix

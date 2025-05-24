@@ -119,3 +119,19 @@
 # print("==================\n"
 #       "==================\n"
 #       "==================")
+
+
+
+
+#
+# print(np.sum(B0), np.sum(B1), np.sum(B_train), np.sum(B_val) , np.sum(B_test))
+#
+# print(X_test)
+# print(B_test)
+# print(np.sum(~np.isnan(X0)), np.sum(~np.isnan(X1)), np.sum(~np.isnan(X_train)), np.sum(~np.isnan(X_val) ), np.sum(B_test * (~np.isnan(X_test))))
+
+# print(X0)
+
+
+# print(np.sum(B1 * B_val), np.sum(B1 * B_train))
+# print(np.sum(B_train * B_val), np.sum(B_train * B_test), np.sum(B_val * B_test))

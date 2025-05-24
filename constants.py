@@ -1,5 +1,4 @@
-mask_percentage=0.2
-n_epochs = 10
+n_epochs = 100 # todo: try 50 - 100.
 batch_size = 128
 lr = 0.001
 forward_ratio = 0.6
@@ -11,3 +10,5 @@ file_predict_actuals = "predict_actuals"
 
 dir_training_validation_performance = "plots_training_validation_performance/"
 file_training_validation_performance = "training_validation_performance"
+
+TOP_N_RECOMMENDATIONS = 10
