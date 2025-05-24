@@ -20,7 +20,7 @@ def calc_diversity(
         for j in range(i+1, n):
             total += dissimilarity(recommendation[i], recommendation[j])
             count += 1
-    return 2 * total / count
+    return total / count
 
 def calc_novelty(
         recommendation: List[int],

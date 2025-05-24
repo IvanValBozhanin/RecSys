@@ -153,32 +153,32 @@ print("\n--- Preparing for Beyond-Accuracy Evaluation ---")
 #user_movie_matrix_df_orig is the original dataframe
 user_movie_matrix_df_orig = pd.DataFrame(X0_movies_x_users_np, columns=range(X0_movies_x_users_np.shape[1]))
 
-movie_ids_original_df_index = user_movie_matrix_df_orig.index.tolist()
-movie_id_to_idx_map = {mid: i for i, mid in enumerate(movie_ids_original_df_index)}
-idx_to_movie_id_map = {i: mid for i, mid in enumerate(movie_ids_original_df_index)}
 
-# Identify indices of test users (these are column indices in the original movies_x_users numpy arrays)
-# These are the users on whom we will evaluate the beyond-accuracy metrics.
-eval_user_indices_for_beyond_acc = np.where(B_test_movies_x_users_np.sum(axis=0) > 0)[0]
-if len(eval_user_indices_for_beyond_acc) == 0:
+# Movie ID mappings:
+# These are the original MovieLens movieIDs present in your ratings data
+movie_ids_in_ratings_df = sorted(user_movie_matrix_df_orig.index.tolist())
+# Create a continuous 0-based index for movies based on their order in your matrix
+# This internal_idx is what your model's output columns correspond to.
+internal_idx_to_original_movie_id_map = {i: mid for i, mid in enumerate(movie_ids_in_ratings_df)}
+# original_movie_id_to_internal_idx_map = {mid: i for i, mid in enumerate(movie_ids_in_ratings_df)} # If needed
+
+# User ID mappings (assuming user_array_idx used in evaluate_beyond_accuracy
+# directly corresponds to columns of original movies_x_users matrices)
+# user_ids_in_ratings_df = sorted(user_movie_matrix_df_orig.columns.tolist())
+# internal_user_idx_to_original_user_id_map = {i: uid for i, uid in enumerate(user_ids_in_ratings_df)}
+
+eval_user_array_indices = np.where(B_test_movies_x_users_np.sum(axis=0) > 0)[0]
+if len(eval_user_array_indices) == 0:
     print("No users found with items in the test set for beyond-accuracy evaluation.")
 else:
-    # The X_features for these eval users should be their training context
-    # Z_train_feat_users_x_movies contains features for ALL training users.
-    # We will pass this full matrix, and eval_user_indices_for_beyond_acc will be used
-    # to slice predictions and history inside evaluate_beyond_accuracy.
     evaluate_beyond_accuracy(
         model=gnn_model_best,
-        X_features_all_users_pt=Z_train_feat_users_x_movies.to(device),  # Full training context features
-        eval_user_array_indices=eval_user_indices_for_beyond_acc,
-        # Indices of users to evaluate (rows in users_x_movies, cols in movies_x_users)
-
-        B_train_history_mask_movies_x_users_np=B_train_known_movies_x_users_np,  # Training history (movies x users)
+        X_features_all_users_pt=Z_train_feat_users_x_movies.to(device),
+        eval_user_array_indices=eval_user_array_indices,
+        B_train_history_mask_movies_x_users_np=B_train_known_movies_x_users_np,
         X_eval_targets_orig_movies_x_users_np=X_test_orig_movies_x_users_np,
-        # Test targets, original scale (movies x users)
-        B_eval_target_mask_movies_x_users_np=B_test_movies_x_users_np,  # Test target mask (movies x users)
-
-        idx_to_movie_id_map=idx_to_movie_id_map,
+        B_eval_target_mask_movies_x_users_np=B_test_movies_x_users_np,
+        idx_to_movie_id_map=internal_idx_to_original_movie_id_map, # USE THIS
         top_n=TOP_N_RECOMMENDATIONS,
         device=device
     )
