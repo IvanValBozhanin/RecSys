@@ -1,4 +1,6 @@
-/venv
-/plots
-/__pycache__/
-/.idea
+venv/
+plots/
+__pycache__/
+.idea/
+plots_predict_actual/
+plots_training_validation_performance/
