@@ -11,9 +11,24 @@ writeVarValues: write the specified values in the specified txt file
 """
 
 import os
+import argparse
 import pickle
 import numpy as np
 import torch
+
+def parse_args():
+    """ Parse arguments """
+    parse = argparse.ArgumentParser()
+
+    ## Run details
+    parse.add_argument("--tau", help="threshold coefficient tau", type=float, default=1.)
+    parse.add_argument("--lr", help="learning rate", type=float, default=0.015)
+    parse.add_argument("--p", help="mean of edge drop probability", type=float, default=0.5)
+    parse.add_argument("--cov_type", help="type of covariance estimator", type=str, default="standard")
+    parse.add_argument("--seed", help="seed for random number generator", type=int, default=42)
+
+    args = parse.parse_args()
+    return args
 
 def num2filename(x,d):
     """

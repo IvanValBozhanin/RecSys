@@ -1,6 +1,48 @@
 import numpy as np
 import torch
 
+def sparsify_covariance(C, cov_type, thr=0.0, p=0.1, sparse_tensor=False):
+    print(f"Sparsifying covariance matrix with type: {cov_type}, threshold: {thr}, probability: {p}")
+    if cov_type == "standard":
+        C_sparse = C
+    elif cov_type == "RCV": 
+        # Generate probability values
+        sigma = min((1-p)/3, p/3)
+        lim_prob = np.linspace(0,1,1000)
+        distr_prob = 1/(sigma * np.sqrt(2*np.pi)) * np.exp(-0.5 * ((lim_prob-p)/sigma)**2)
+        distr_prob = distr_prob / distr_prob.sum()
+        prob_values = np.random.choice(lim_prob, p=distr_prob, size=C.shape[0] ** 2)
+        prob_values = torch.FloatTensor(np.sort(prob_values))
+
+        # Assign probability values 
+        sorted_idx = torch.argsort(C.abs().flatten())
+        prob = torch.zeros([C.shape[0] ** 2,]).float().scatter_(0, sorted_idx, prob_values)
+        prob = prob.reshape(C.shape)
+        prob[torch.eye(prob.shape[0]).long()] = 1 # no removal on the diagonal
+        
+        # Drop edges symmetrically
+        mask = torch.rand(C.shape) <= prob
+        triu = torch.triu(torch.ones(C.shape), diagonal=0).bool()
+        mask = mask * triu + mask.t() * ~triu # make resulting matrix symmetric
+        C_sparse = torch.where(mask, C, 0)
+
+    elif cov_type == "ACV":
+        prob = C.abs() / C.abs().max()
+        prob[torch.eye(prob.shape[0]).long()] = 1 # no removal on the diagonal
+        mask = torch.rand(C.shape) <= prob
+        triu = torch.triu(torch.ones(C.shape), diagonal=0).bool()
+        mask = mask * triu + mask.t() * ~triu # make resulting matrix symmetric
+        C_sparse = torch.where(mask, C, 0)
+
+    elif cov_type == "hard_thr":
+        C_sparse = torch.where(C.abs() > thr, C, 0)
+    elif cov_type == "soft_thr":
+        C_sparse = torch.where(C.abs() > thr, C - (C>0).float()*thr, 0)
+
+    if sparse_tensor:
+        return C_sparse.to_sparse()
+    
+    return C_sparse
 
 def nanvar(
         tensor: torch.Tensor,
@@ -31,7 +73,10 @@ def nanstd(
 
 
 def compute_user_user_covariance_torch(
-        Z_features_movies_x_users: torch.Tensor  # Normalized, zero-filled features movies x users
+        Z_features_movies_x_users: torch.Tensor,  # Normalized, zero-filled features movies x users
+        cov_type: str = "standard",  # Options: "standard", "RCV", "ACV", "hard_thr", "soft_thr"
+        thr: float = 0.0,  # Threshold for hard/soft thresholding
+        p: float = 0.0  # Probability for RCV/ACV
 ) -> torch.Tensor:
     # Z_features_movies_x_users: (|I| x |U|) - already normalized and 0-filled where originally NaN
     # For covariance, we treat users as variables and items as samples/observations.
@@ -60,5 +105,6 @@ def compute_user_user_covariance_torch(
     # then mean subtraction is not strictly necessary here again.
     # The division by n_items makes it more like a "second moment matrix" if not centered,
     # or scaled covariance if centered. This is a common GSO in GCNs.
-    C = (Z_features_movies_x_users.t() @ Z_features_movies_x_users) / n_items
-    return C
+    C = (Z_features_movies_x_users.t() @ Z_features_movies_x_users) / n_items * 100.0
+    C_sparse = sparsify_covariance(C, cov_type, thr, p)
+    return C_sparse

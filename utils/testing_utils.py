@@ -61,6 +61,7 @@ def test_model(model,
     rmse = np.sqrt(np.mean(np.square(test_predictions_flat - test_actuals_flat)))
 
     print(f"Test RMSE on 1-5 scale: {rmse:.4f}")
+    print(f"test_rmse {rmse:.4f}" )
     # print(f"Predictions (sample): {test_predictions_flat[:20]}")
     # print(f"Actuals (sample): {test_actuals_flat[:20]}")
 

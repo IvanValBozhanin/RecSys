@@ -6,6 +6,7 @@ sys.path.append('../')
 import pandas as pd
 import numpy as np
 import torch
+import sklearn
 
 from utils.covariance_utils import nanstd
 from sklearn.model_selection import train_test_split
@@ -120,7 +121,7 @@ def normalize_and_fill_set(X_set, user_means, user_stds):
 
 def get_pytorch_normalized_inputs_and_targets(
         X0_movies_x_users_tensor: torch.Tensor,  # Original full ratings tensor
-        B0_mask_movies_x_users_tensor: torch.Tensor,  # Original full mask
+        # B0_mask_movies_x_users_tensor: torch.Tensor,  # Original full mask
         train_mask_movies_x_users_tensor: torch.Tensor,  # Mask for ratings in this specific (train/val) set
         user_means_for_norm: torch.Tensor = None,  # Optional: For val/test
         user_stds_for_norm: torch.Tensor = None  # Optional: For val/test
@@ -144,7 +145,7 @@ def get_pytorch_normalized_inputs_and_targets(
                                          torch.tensor(1.0, device=X0_movies_x_users_tensor.device),
                                          user_stds_for_norm)  # Avoid div by zero
 
-    Z_features_movies_x_users = (X0_movies_x_users_tensor - user_means_for_norm) / (user_stds_for_norm + 1e-8)
+    Z_features_movies_x_users = (ratings_for_norm_stats - user_means_for_norm) / (user_stds_for_norm + 1e-8)
     Z_features_movies_x_users = torch.nan_to_num(Z_features_movies_x_users, nan=0.0)  # Fill all NaNs
 
     # 2. Create the target matrix (Y) and loss mask (B_loss)
@@ -152,9 +153,9 @@ def get_pytorch_normalized_inputs_and_targets(
     #    - B_loss is just train_mask_movies_x_users_tensor
 
     # Normalize only the actual known ratings for the target
-    actual_known_ratings_in_set = X0_movies_x_users_tensor * train_mask_movies_x_users_tensor
+    actual_known_ratings_in_set = ratings_for_norm_stats * train_mask_movies_x_users_tensor
     # Make non-target NaNs for normalization, then fill
-    actual_known_ratings_in_set_for_norm = torch.where(train_mask_movies_x_users_tensor == 1, X0_movies_x_users_tensor,
+    actual_known_ratings_in_set_for_norm = torch.where(train_mask_movies_x_users_tensor == 1, ratings_for_norm_stats,
                                                        torch.nan)
 
     Y_targets_norm_movies_x_users = (actual_known_ratings_in_set_for_norm - user_means_for_norm) / (

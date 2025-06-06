@@ -25,20 +25,20 @@ class SelectionGNN(nn.Module):
     Initialization:
 
         SelectionGNN(dimNodeSignals, nFilterTaps, bias, # Graph Filtering
-                     nonlinearity, # Nonlinearity
-                     nSelectedNodes, poolingFunction, poolingSize, # Pooling
-                     dimLayersMLP, # MLP in the end
-                     GSO, order = None, # Structure
-                     coarsening = False)
+                    nonlinearity, # Nonlinearity
+                    nSelectedNodes, poolingFunction, poolingSize, # Pooling
+                    dimLayersMLP, # MLP in the end
+                    GSO, order = None, # Structure
+                    coarsening = False)
 
         Input:
             /** Graph convolutional layers **/
             dimNodeSignals (list of int): dimension of the signals at each layer
                 (i.e. number of features at each node, or size of the vector
-                 supported at each node)
+                supported at each node)
             nFilterTaps (list of int): number of filter taps on each layer
                 (i.e. nFilterTaps-1 is the extent of neighborhoods that are
-                 reached, for example K=2 is info from the 1-hop neighbors)
+                reached, for example K=2 is info from the 1-hop neighbors)
             bias (bool): include bias after graph filter on every layer
             >> Obs.: dimNodeSignals[0] is the number of features (the dimension
                 of the node signals) of the data, where dimNodeSignals[l] is the
@@ -85,13 +85,13 @@ class SelectionGNN(nn.Module):
             coarsening (bool, default = False): if True uses graph coarsening
                 instead of zero-padding to reduce the number of nodes.
             >> Obs.: (i) Graph coarsening only works when the number
-                 of edge features is 1 -scalar weights-. (ii) The graph
-                 coarsening forces a given order of the nodes, and this order
-                 has to be used to reordering the GSO as well as the samples
-                 during training; as such, this order is internally saved and
-                 applied to the incoming samples in the forward call -it is
-                 thus advised to use the identity ordering in the model class
-                 when using the coarsening method-.
+                of edge features is 1 -scalar weights-. (ii) The graph
+                coarsening forces a given order of the nodes, and this order
+                has to be used to reordering the GSO as well as the samples
+                during training; as such, this order is internally saved and
+                applied to the incoming samples in the forward call -it is
+                thus advised to use the identity ordering in the model class
+                when using the coarsening method-.
 
         Output:
             nn.Module with a Selection GNN architecture with the above specified
@@ -136,21 +136,21 @@ class SelectionGNN(nn.Module):
     """
 
     def __init__(self,
-                 # Graph filtering
-                 dimNodeSignals, nFilterTaps, bias,
-                 # Nonlinearity
-                 nonlinearity,
-                 # Pooling
-                 nSelectedNodes, poolingFunction, poolingSize,
-                 # MLP in the end
-                 dimLayersMLP,
-                 # Structure
-                 GSO,
-                 # Ordering
-                 order = None,
-                 # Coarsening
-                 coarsening = False, 
-                 average = False):
+                # Graph filtering
+                dimNodeSignals, nFilterTaps, bias,
+                # Nonlinearity
+                nonlinearity,
+                # Pooling
+                nSelectedNodes, poolingFunction, poolingSize,
+                # MLP in the end
+                dimLayersMLP,
+                # Structure
+                GSO,
+                # Ordering
+                order = None,
+                # Coarsening
+                coarsening = False, 
+                average = False):
         # Initialize parent:
         super().__init__()
         # dimNodeSignals should be a list and of size 1 more than nFilter taps.
@@ -191,7 +191,7 @@ class SelectionGNN(nn.Module):
             self.permFunction = Utils.graphTools.permIdentity
             # This is overriden if coarsening is selected, since the ordering
             # function is native to that pooling method.
-     
+    
         self.coarsening = coarsening # Whether to do coarsening or not
         # If we have to do coarsening, then note that it can only be done if
         # we have a single edge feature, otherwise, each edge feature could be
@@ -205,7 +205,7 @@ class SelectionGNN(nn.Module):
                 # permutation function for the one corresponding to coarsening
             GSO = scipy.sparse.csr_matrix(GSO[0])
             GSO, self.order = Utils.graphTools.coarsen(GSO, levels=self.L,
-                                                       self_connections=False)
+                                                    self_connections=False)
             # Now, GSO is a list of csr_matrix with self.L+1 coarsened GSOs,
             # we need to torch.tensor them and put them in a list.
             # order is just a list of indices to reorder the nodes.
@@ -255,7 +255,7 @@ class SelectionGNN(nn.Module):
         for l in range(self.L):
             #\\ Graph filtering stage:
             gfl.append(gml.GraphFilter(self.F[l], self.F[l+1], self.K[l],
-                                              self.E, self.bias))
+                                            self.E, self.bias))
             # There is a 3*l below here, because we have three elements per
             # layer: graph filter, nonlinearity and pooling, so after each layer
             # we're actually adding elements to the (sequential) list.
@@ -368,7 +368,7 @@ class SelectionGNN(nn.Module):
             for l in range(self.L):
                 # For each layer, add the pooling function
                 self.GFL[3*l+2] = self.rho(self.N[l], self.N[l+1],
-                                           self.alpha[l])
+                                        self.alpha[l])
                 self.GFL[3*l+2].addGSO(self.S)
         elif len(nSelectedNodes) == 0 and not self.coarsening:
             # Just update the GSO
@@ -380,7 +380,7 @@ class SelectionGNN(nn.Module):
             device = self.S[0].device
             GSO = scipy.sparse.csr_matrix(GSO[0])
             GSO, self.order = Utils.graphTools.coarsen(GSO, levels=self.L,
-                                                       self_connections=False)
+                                                    self_connections=False)
             # Now, GSO is a list of csr_matrix with self.L+1 coarsened GSOs,
             # we need to torch.tensor them and put them in a list.
             # order is just a list of indices to reorder the nodes.
@@ -477,16 +477,4 @@ class SelectionGNN(nn.Module):
             for l in range(self.L):
                 self.GFL[3*l].addGSO(self.S)
                 self.GFL[3*l+2].addGSO(self.S)
-                
-                
-
-                
-
-
-
-
-
-
-            
-
-            
+        
