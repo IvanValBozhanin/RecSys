@@ -2,10 +2,13 @@ import subprocess
 import time
 import re
 import csv
+import os
+import sys
 
 cov_types = ["standard", "RCV", "ACV", "hard_thr", "soft_thr"]
 tau_values = [0.01, 0.05, 0.1, 0.2, 0.5, 1.0, 1.5, 2, 5, 10, 50]
 p_values = [0.05, 0.1, 0.15, 0.25, 0.45, 0.5, 0.55, 0.7, 0.75, 0.9]
+output_file = (sys.argv[1] if len(sys.argv) > 1 else "sparsification_results") + ".csv"
 
 results = []
 
@@ -14,12 +17,14 @@ for cov in cov_types:
     if cov == "standard":
         # Standard has no parameters
         param_combos = [{"tau": None, "p": None}]
-    elif cov in ["hard_tau", "soft_tau"]:
+    elif cov in ["hard_thr", "soft_thr"]:
         # These use threshold only
         param_combos = [{"tau": tau, "p": None} for tau in tau_values]
-    elif cov in ["RCV", "ACV"]:
+    elif cov in ["RCV"]:
         # These use p only
         param_combos = [{"tau": None, "p": p} for p in p_values]
+    elif cov in ["ACV"]:
+        param_combos = [{"tau": None, "p": None}]
     
     # Run each parameter combination
     for params in param_combos:
@@ -48,10 +53,10 @@ for cov in cov_types:
             "training_time": round(end - start, 2)
         })
 
-# Save to CSV
-with open("sparsification_results.csv", "w", newline="") as f:
+
+with open(output_file, "w", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=["cov_type", "tau", "p", "test_rmse", "sparsity", "training_time"])
     writer.writeheader()
     writer.writerows(results)
 
-print("All experiments completed and results saved to sparsification_results.csv")
+print("All experiments completed and results saved to ", output_file)

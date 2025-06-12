@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 
-def sparsify_covariance(C, cov_type, thr=0.0, p=0.1, sparse_tensor=False):
+def sparsify_covariance(C, cov_type, thr=0.0, p=0.1, sparse_tensor=False, sparsification_value = 1e-3):
     print(f"Sparsifying covariance matrix with type: {cov_type}, threshold: {thr}, probability: {p}")
+    device = C.device
     if cov_type == "standard":
         C_sparse = C
     elif cov_type == "RCV": 
@@ -12,32 +13,32 @@ def sparsify_covariance(C, cov_type, thr=0.0, p=0.1, sparse_tensor=False):
         distr_prob = 1/(sigma * np.sqrt(2*np.pi)) * np.exp(-0.5 * ((lim_prob-p)/sigma)**2)
         distr_prob = distr_prob / distr_prob.sum()
         prob_values = np.random.choice(lim_prob, p=distr_prob, size=C.shape[0] ** 2)
-        prob_values = torch.FloatTensor(np.sort(prob_values))
+        prob_values = torch.tensor(np.sort(prob_values), dtype=torch.float32, device=device)
 
         # Assign probability values 
         sorted_idx = torch.argsort(C.abs().flatten())
-        prob = torch.zeros([C.shape[0] ** 2,]).float().scatter_(0, sorted_idx, prob_values)
+        prob = torch.zeros([C.shape[0] ** 2,], device=device).float().scatter_(0, sorted_idx, prob_values)
         prob = prob.reshape(C.shape)
-        prob[torch.eye(prob.shape[0]).long()] = 1 # no removal on the diagonal
+        prob[torch.eye(prob.shape[0], device=device).long()] = 1 # no removal on the diagonal
         
         # Drop edges symmetrically
-        mask = torch.rand(C.shape) <= prob
-        triu = torch.triu(torch.ones(C.shape), diagonal=0).bool()
+        mask = torch.rand(C.shape, device=device) <= prob
+        triu = torch.triu(torch.ones(C.shape, device=device), diagonal=0).bool()
         mask = mask * triu + mask.t() * ~triu # make resulting matrix symmetric
-        C_sparse = torch.where(mask, C, 0)
+        C_sparse = torch.where(mask, C, sparsification_value)
 
     elif cov_type == "ACV":
         prob = C.abs() / C.abs().max()
-        prob[torch.eye(prob.shape[0]).long()] = 1 # no removal on the diagonal
-        mask = torch.rand(C.shape) <= prob
-        triu = torch.triu(torch.ones(C.shape), diagonal=0).bool()
+        prob[torch.eye(prob.shape[0], device=device).long()] = 1 # no removal on the diagonal
+        mask = torch.rand(C.shape, device=device) <= prob
+        triu = torch.triu(torch.ones(C.shape, device=device), diagonal=0).bool()
         mask = mask * triu + mask.t() * ~triu # make resulting matrix symmetric
-        C_sparse = torch.where(mask, C, 0)
+        C_sparse = torch.where(mask, C, sparsification_value)
 
     elif cov_type == "hard_thr":
-        C_sparse = torch.where(C.abs() > thr, C, 0)
+        C_sparse = torch.where(C.abs() > thr, C, sparsification_value)
     elif cov_type == "soft_thr":
-        C_sparse = torch.where(C.abs() > thr, C - (C>0).float()*thr, 0)
+        C_sparse = torch.where(C.abs() > thr, C - (C>0).float()*thr, sparsification_value)
 
     if sparse_tensor:
         return C_sparse.to_sparse()
@@ -76,7 +77,8 @@ def compute_user_user_covariance_torch(
         Z_features_movies_x_users: torch.Tensor,  # Normalized, zero-filled features movies x users
         cov_type: str = "standard",  # Options: "standard", "RCV", "ACV", "hard_thr", "soft_thr"
         thr: float = 0.0,  # Threshold for hard/soft thresholding
-        p: float = 0.0  # Probability for RCV/ACV
+        p: float = 0.0,  # Probability for RCV/ACV
+        sparsification_value: float = 1e-3  # Value to fill in for sparsification
 ) -> torch.Tensor:
     # Z_features_movies_x_users: (|I| x |U|) - already normalized and 0-filled where originally NaN
     # For covariance, we treat users as variables and items as samples/observations.
@@ -105,6 +107,6 @@ def compute_user_user_covariance_torch(
     # then mean subtraction is not strictly necessary here again.
     # The division by n_items makes it more like a "second moment matrix" if not centered,
     # or scaled covariance if centered. This is a common GSO in GCNs.
-    C = (Z_features_movies_x_users.t() @ Z_features_movies_x_users) / n_items * 100.0
-    C_sparse = sparsify_covariance(C, cov_type, thr, p)
+    C = (Z_features_movies_x_users.t() @ Z_features_movies_x_users) / n_items
+    C_sparse = sparsify_covariance(C, cov_type, thr, p, sparsification_value=sparsification_value)
     return C_sparse

@@ -20,8 +20,8 @@ from utils.metrics_evaluation_utils import evaluate_beyond_accuracy
 args = parse_args()
 
 #TODO: set the seed for torch for replicability. But RUN WITHOUT SEED!
-np.random.seed(seed)
-torch.manual_seed(seed)
+# np.random.seed(seed)
+# torch.manual_seed(seed)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}.")
@@ -85,16 +85,20 @@ _, _ = get_pytorch_normalized_inputs_and_targets(
 # Test targets remain in original scale (from X_test_orig_movies_x_users_np)
 X_test_targets_orig_users_x_movies = torch.tensor(X_test_orig_movies_x_users_np.T, dtype=torch.float32, device=device)
 
+sparsification_value = 1e-8  # Value to fill in for sparsification
 
 # --- GSO Calculation ---
 # Use Z_train_feat_users_x_movies (already users x movies, normalized, 0-filled)
 # but compute_user_user_covariance_torch expects movies x users input.
-C = compute_user_user_covariance_torch(Z_train_feat_users_x_movies.T, cov_type, thr = tau * torch.tensor(np.sqrt(np.log(m) / nTrain)), p = args.p).to(device)
+C = compute_user_user_covariance_torch(Z_train_feat_users_x_movies.T, cov_type, 
+                                       thr = tau * torch.tensor(np.sqrt(np.log(m) / nTrain)), 
+                                       p = args.p, 
+                                       sparsification_value=sparsification_value).to(device)
 # C = torch.full_like(C, 0)
 
 threshold_value = tau * torch.tensor(np.sqrt(np.log(m) / nTrain))
-sparsity = (C == 0).sum().item() / C.numel()
-print(C.max(), C.min(), C.mean(), C.std())
+sparsity = (torch.abs(C) <= sparsification_value).sum().item() / C.numel()
+print(f"C stats - Max: {C.max().item():.4f}, Min: {C.min().item():.4f}, Mean: {C.mean().item():.4f}, Std: {C.std().item():.4f}")
 
 print(f"Computed GSO with threshold {threshold_value:.4f}, sparsity: {sparsity:.4%}")
 print(f"sparcity: {sparsity:.4}")
@@ -121,7 +125,17 @@ for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps
 
     gnn_model = MovieLensGNN(C, num_movies, dimNodeSignals, nTaps, dimLayersMLP, num_users).to(device)
     optimizer = optim.Adam(gnn_model.parameters(), lr=lr)
-    loss_fn = nn.MSELoss(reduction='sum')
+    class RMSELoss(nn.Module):
+        def __init__(self, reduction='sum'):
+            super().__init__()
+            self.mse = nn.MSELoss(reduction=reduction)
+            
+        def forward(self, yhat, y):
+            return torch.sqrt(self.mse(yhat, y))
+
+    loss_fn = RMSELoss(reduction='sum')
+    # loss_fn = nn.MSELoss(reduction='sum')
+
 
     final_epoch_val_loss = float('inf')
 
