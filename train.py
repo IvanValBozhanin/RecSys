@@ -31,95 +31,95 @@ file_path = 'ml-latest-small/ratings.csv'
 cov_type = args.cov_type
 tau = args.tau
 
-X0_movies_x_users_np, B0_movies_x_users_np = load_movielens_data(file_path)
+ratings_full_MxU, mask_full_MxU  = load_movielens_data(file_path)
 
 # Data Splitting (NumPy)
-X1_movies_x_users_np, B1_movies_x_users_np, X_test_orig_movies_x_users_np, B_test_movies_x_users_np = split_test_set(
-    X0_movies_x_users_np, B0_movies_x_users_np, mask_percentage=1/10, seed=seed
+ratings_trval_MxU, mask_trval_MxU, ratings_test_MxU, mask_test_MxU = split_test_set(
+    ratings_full_MxU, mask_full_MxU, mask_percentage=1 / 10, seed=seed
 )
-X_train_known_movies_x_users_np, B_train_known_movies_x_users_np, X_val_orig_movies_x_users_np, B_val_movies_x_users_np = split_val_set(
-    X1_movies_x_users_np, B1_movies_x_users_np, mask_percentage=1/9, seed=seed
+ratings_train_MxU, mask_train_MxU, ratings_val_MxU, mask_val_MxU = split_val_set(
+    ratings_trval_MxU, mask_trval_MxU, mask_percentage=1 / 9, seed=seed
 )
 
 # Calculate nTrain - number of samples in training set
-nTrain = B_train_known_movies_x_users_np.sum()
-m = X0_movies_x_users_np.shape[1]  # Number of users
+nTrain = mask_train_MxU.sum()
+m = ratings_full_MxU.shape[1]  # Number of users
 
 # Convert to PyTorch Tensors
-X0_full_pt = torch.tensor(X0_movies_x_users_np, dtype=torch.float32, device=device)
-B0_full_mask_pt = torch.tensor(B0_movies_x_users_np, dtype=torch.int, device=device)
+ratings_full_pt_MxU = torch.tensor(ratings_full_MxU, dtype=torch.float32, device=device)
+mask_full_pt_MxU = torch.tensor(mask_full_MxU, dtype=torch.int, device=device)
 
-B_train_active_mask_pt = torch.tensor(B_train_known_movies_x_users_np, dtype=torch.int, device=device)
-B_val_active_mask_pt = torch.tensor(B_val_movies_x_users_np, dtype=torch.int, device=device)
-B_test_active_mask_pt = torch.tensor(B_test_movies_x_users_np, dtype=torch.int, device=device)
+mask_train_pt_MxU = torch.tensor(mask_train_MxU, dtype=torch.int, device=device)
+mask_val_pt_MxU = torch.tensor(mask_val_MxU, dtype=torch.int, device=device)
+mask_test_pt_MxU = torch.tensor(mask_test_MxU, dtype=torch.int, device=device)
 
-X_only_train_visible = X0_full_pt.clone()
-X_only_train_visible[B_train_active_mask_pt == 0] = 0
+visible_ratings_train_pt_MxU = ratings_full_pt_MxU.clone()
+visible_ratings_train_pt_MxU[mask_train_pt_MxU == 0] = 0
 
-X_only_val_visible = X0_full_pt.clone()
-X_only_val_visible[B_val_active_mask_pt == 0] = 0
+visible_ratings_val_pt_MxU = ratings_full_pt_MxU.clone()
+visible_ratings_val_pt_MxU[mask_val_pt_MxU == 0] = 0
 
-X_only_test_visible = X0_full_pt.clone()
-X_only_test_visible[B_test_active_mask_pt == 0] = 0
+visible_ratings_test_pt_MxU = ratings_full_pt_MxU.clone()
+visible_ratings_test_pt_MxU[mask_test_pt_MxU == 0] = 0
 
 # --- Prepare Normalized Data using PyTorch function ---
 # For training features and targets:
-Z_train_feat_users_x_movies, Y_train_targets_users_x_movies, B_train_loss_users_x_movies, \
+features_train_pt_UxM, targets_train_norm_pt_UxM, mask_train_loss_pt_UxM, \
 train_user_means, train_user_stds = get_pytorch_normalized_inputs_and_targets(
-    X_only_train_visible, train_mask_movies_x_users_tensor=B_train_active_mask_pt # Use B_train_active_mask_pt to define known for stats
+    visible_ratings_train_pt_MxU, train_mask_movies_x_users_tensor=mask_train_pt_MxU # Use B_train_active_mask_pt to define known for stats
 )
 
 # For validation:
-Z_val_feat_users_x_movies, Y_val_targets_users_x_movies, B_val_loss_users_x_movies, \
+features_val_pt_UxM, targets_val_norm_pt_UxM, mask_val_pt_UxM, \
 _, _ = get_pytorch_normalized_inputs_and_targets(
-    X_only_val_visible, train_mask_movies_x_users_tensor=B_val_active_mask_pt, # Use B_val_active_mask_pt for its known ratings
+    visible_ratings_val_pt_MxU, train_mask_movies_x_users_tensor=mask_val_pt_MxU, # Use B_val_active_mask_pt for its known ratings
     user_means_for_norm=train_user_means, user_stds_for_norm=train_user_stds
 )
 
 # For testing:
-Z_test_feat_users_x_movies, _, B_test_loss_users_x_movies, \
+featuers_test_pt_UxM, _, mask_test_pt_UxM, \
 _, _ = get_pytorch_normalized_inputs_and_targets(
-    X_only_test_visible, train_mask_movies_x_users_tensor=B_test_active_mask_pt, # Use B_test_active_mask_pt for its known ratings
+    visible_ratings_test_pt_MxU, train_mask_movies_x_users_tensor=mask_test_pt_MxU, # Use B_test_active_mask_pt for its known ratings
     user_means_for_norm=train_user_means, user_stds_for_norm=train_user_stds
 )
-# Test targets remain in original scale (from X_test_orig_movies_x_users_np)
-X_test_targets_orig_users_x_movies = torch.tensor(X_test_orig_movies_x_users_np.T, dtype=torch.float32, device=device)
+
+targets_test_orig_pt_UxM = torch.tensor(ratings_test_MxU.T, dtype=torch.float32, device=device)
 
 
 # --- GSO Calculation ---
 # Use Z_train_feat_users_x_movies (already users x movies, normalized, 0-filled)
 # but compute_user_user_covariance_torch expects movies x users input.
-C = compute_user_user_covariance_torch(Z_train_feat_users_x_movies.T, cov_type, thr = tau * torch.tensor(np.sqrt(np.log(m) / nTrain)), p = args.p).to(device)
+C_user_user_pt_UxU = compute_user_user_covariance_torch(features_train_pt_UxM.T, cov_type, thr =tau * torch.tensor(np.sqrt(np.log(m) / nTrain)), p = args.p).to(device)
 # C = torch.full_like(C, 0)
 
 threshold_value = tau * torch.tensor(np.sqrt(np.log(m) / nTrain))
-sparsity = (C == 0).sum().item() / C.numel()
-print(C.max(), C.min(), C.mean(), C.std())
+sparsity = (C_user_user_pt_UxU == 0).sum().item() / C_user_user_pt_UxU.numel()
+print(C_user_user_pt_UxU.max(), C_user_user_pt_UxU.min(), C_user_user_pt_UxU.mean(), C_user_user_pt_UxU.std())
 
 print(f"Computed GSO with threshold {threshold_value:.4f}, sparsity: {sparsity:.4%}")
 print(f"sparcity: {sparsity:.4}")
 
-num_users, num_movies = Z_train_feat_users_x_movies.shape
-print(f"Number of users: {num_users}, Number of movies: {num_movies}")
+U, M = features_train_pt_UxM.shape
+print(f"Number of users: {U}, Number of movies: {M}")
 
 # --- Hyperparameter Search Loop (largely unchanged from previous good version) ---
-dimNodeSignals_options = [
+GNN_dimNodeSignals_options = [
     # [num_movies, 256, 512],
     # [num_movies, 128, 512],
-    [num_movies, 512, 512]
+    [M, 512, 512]
 ]
-nTaps_options = [2]
-dimLayersMLP_options = [[512, 1024, num_movies]]
+GNN_numTaps_options = [2]
+MLP_layerDims_options = [[512, 1024, M]]
 
-best_hyperparams_tuple = (dimNodeSignals_options[0], nTaps_options[0], dimLayersMLP_options[0])
+best_hyperparams_tuple = (GNN_dimNodeSignals_options[0], GNN_numTaps_options[0], MLP_layerDims_options[0])
 best_val_loss = float('inf')
 train_losses_for_best_model, val_losses_for_best_model = [], []
 
-for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps_options, dimLayersMLP_options):
+for dimNodeSignals, GNN_numTaps, MLP_layerDims in product(GNN_dimNodeSignals_options, GNN_numTaps_options, MLP_layerDims_options):
     current_epoch_train_losses, current_epoch_val_losses = [], []
-    print(f"Training with hyperparameters: GNN Layers: {dimNodeSignals}, Taps: {nTaps}, MLP Layers: {dimLayersMLP}")
+    print(f"Training with hyperparameters: GNN Layers: {dimNodeSignals}, Taps: {GNN_numTaps}, MLP Layers: {MLP_layerDims}")
 
-    gnn_model = MovieLensGNN(C, num_movies, dimNodeSignals, nTaps, dimLayersMLP, num_users).to(device)
+    gnn_model = MovieLensGNN(C_user_user_pt_UxU, M, dimNodeSignals, GNN_numTaps, MLP_layerDims, U).to(device)
     optimizer = optim.Adam(gnn_model.parameters(), lr=lr)
     loss_fn = nn.MSELoss(reduction='sum')
 
@@ -128,18 +128,18 @@ for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps
     for epoch in range(n_epochs):
         epoch_train_loss = train_epoch_full_graph(
                                         gnn_model, optimizer,
-                                        Z_train_feat_users_x_movies,
-                                        Y_train_targets_users_x_movies,
-                                        B_train_loss_users_x_movies, # This is the mask of *known training ratings*
+                                        features_train_pt_UxM,
+                                        targets_train_norm_pt_UxM,
+                                        mask_train_loss_pt_UxM, # This is the mask of *known training ratings*
                                         loss_fn, batch_size, device
                                         )
         current_epoch_train_losses.append(epoch_train_loss)
 
         final_epoch_val_loss = validate_model(
                                     gnn_model,
-                                    Z_val_feat_users_x_movies, # Input features for val users
-                                    Y_val_targets_users_x_movies, # Ground truth for val users
-                                    B_val_loss_users_x_movies, # Mask of *known validation ratings*
+                                    features_val_pt_UxM, # Input features for val users
+                                    targets_val_norm_pt_UxM, # Ground truth for val users
+                                    mask_val_pt_UxM, # Mask of *known validation ratings*
                                     loss_fn, batch_size, device
                                     )
         current_epoch_val_losses.append(final_epoch_val_loss)
@@ -147,7 +147,7 @@ for dimNodeSignals, nTaps, dimLayersMLP in product(dimNodeSignals_options, nTaps
 
     if final_epoch_val_loss < best_val_loss:
         best_val_loss = final_epoch_val_loss
-        best_hyperparams_tuple = (dimNodeSignals, nTaps, dimLayersMLP)
+        best_hyperparams_tuple = (dimNodeSignals, GNN_numTaps, MLP_layerDims)
         torch.save(gnn_model.state_dict(), 'best_model.pth')
         train_losses_for_best_model = current_epoch_train_losses
         val_losses_for_best_model = current_epoch_val_losses
@@ -157,18 +157,18 @@ if train_losses_for_best_model:
     plot_training_validation_performance(train_losses_for_best_model, val_losses_for_best_model, len(train_losses_for_best_model))
 
 print(f"\nLoading best model with hyperparameters: {best_hyperparams_tuple}")
-gnn_model_best = MovieLensGNN(C, num_movies,
+gnn_model_best = MovieLensGNN(C_user_user_pt_UxU, M,
                               best_hyperparams_tuple[0],
                               best_hyperparams_tuple[1],
                               best_hyperparams_tuple[2],
-                              num_users).to(device)
+                              U).to(device)
 gnn_model_best.load_state_dict(torch.load('best_model.pth'))
 
 test_model(gnn_model_best,
-           Z_test_feat_users_x_movies, # Input features for test (normalized train context)
-           X_test_targets_orig_users_x_movies, # Original scale targets
-           B_test_loss_users_x_movies, # Mask of *known test ratings*
-           train_user_means.cpu().numpy(), # Ensure numpy for denormalization
+           featuers_test_pt_UxM,  # Input features for test (normalized train context)
+           targets_test_orig_pt_UxM,  # Original scale targets
+           mask_test_pt_UxM,  # Mask of *known test ratings*
+           train_user_means.cpu().numpy(),  # Ensure numpy for denormalization
            train_user_stds.cpu().numpy(),  # Ensure numpy for denormalization
            device)
 
@@ -178,7 +178,7 @@ print("\n--- Preparing for Beyond-Accuracy Evaluation ---")
 # user_movie_matrix_df_orig is movies_as_rows (index), users_as_columns from load_movielens_data
 
 #user_movie_matrix_df_orig is the original dataframe
-user_movie_matrix_df_orig = pd.DataFrame(X0_movies_x_users_np, columns=range(X0_movies_x_users_np.shape[1]))
+user_movie_matrix_df_orig = pd.DataFrame(ratings_full_MxU, columns=range(ratings_full_MxU.shape[1]))
 
 
 # Movie ID mappings:
@@ -194,7 +194,7 @@ internal_idx_to_original_movie_id_map = {i: mid for i, mid in enumerate(movie_id
 # user_ids_in_ratings_df = sorted(user_movie_matrix_df_orig.columns.tolist())
 # internal_user_idx_to_original_user_id_map = {i: uid for i, uid in enumerate(user_ids_in_ratings_df)}
 
-eval_user_array_indices = np.where(B_test_movies_x_users_np.sum(axis=0) > 0)[0]
+eval_user_array_indices = np.where(mask_test_MxU.sum(axis=0) > 0)[0]
 
 if len(eval_user_array_indices) == 0:
     print("No users found with items in the test set for beyond-accuracy evaluation.")
