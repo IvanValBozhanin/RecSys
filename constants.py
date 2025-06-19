@@ -1,6 +1,6 @@
-n_epochs = 1024 # todo: try 50 - 100.
-batch_size = 512
-lr = 0.01
+n_epochs = 128 # todo: try 50 - 100.
+batch_size = 256
+lr = 0.001
 forward_ratio = 0.8
 seed = 42
 

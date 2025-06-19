@@ -6,17 +6,15 @@ from constants import forward_ratio
 def create_user_batches(
         num_total_users,
         batch_size_of_users,
-        shuffle=True):
+        shuffle=True,
+        device=None):
 
-    user_indices = np.arange(num_total_users)
+    user_idx = torch.arange(num_total_users, dtype=torch.long,
+                            device=device or torch.device('cpu'))
     if shuffle:
-        np.random.shuffle(user_indices)
-
-    batches_of_user_indices = []
-    for start in range(0, num_total_users, batch_size_of_users):
-        end = start + batch_size_of_users
-        batches_of_user_indices.append(user_indices[start:end])
-    return batches_of_user_indices
+        user_idx = user_idx[torch.randperm(num_total_users, device=user_idx.device)]
+    # Split into chunks of size batch_size_of_users
+    return list(user_idx.split(batch_size_of_users))
 
 
 def random_training_split(
@@ -28,28 +26,22 @@ def random_training_split(
     Each epoch, a new random split ensures the GNN sees different input subsets.
     """
 
-    if torch.is_tensor(mask_train_UxM):
-        mask_np = mask_train_UxM.cpu().numpy()
-    else:
-        mask_np = mask_train_UxM
+    U, M = mask_train_UxM.shape
 
-    flat_idx = np.where(mask_np.flatten() == 1)[0]
-    np.random.shuffle(flat_idx)
+    flat = mask_train_UxM.reshape(-1)  # (U*M,)
 
-    n_total = flat_idx.size
-    n_forward = int(n_total * forward_ratio)
+    idx = torch.nonzero(flat, as_tuple=False).squeeze(1)  # known-rating indices
+    perm = torch.randperm(idx.numel(), device=flat.device)
 
-    fwd_idx = flat_idx[:n_forward]
-    bwd_idx = flat_idx[n_forward:]
+    n_fwd = int(idx.numel() * forward_ratio)
+    fwd_idx, bwd_idx = idx[perm[:n_fwd]], idx[perm[n_fwd:]]
 
-    fwd_flat = np.zeros(mask_np.size, dtype=np.int8)
-    bwd_flat = np.zeros(mask_np.size, dtype=np.int8)
+    fwd_flat = torch.zeros_like(flat)
     fwd_flat[fwd_idx] = 1
-    bwd_flat[bwd_idx] = 1
 
-    fwd_mask_UxM = fwd_flat.reshape(mask_np.shape)
-    bwd_mask_UxM = bwd_flat.reshape(mask_np.shape)
-    return fwd_mask_UxM, bwd_mask_UxM
+    bwd_flat = torch.zeros_like(flat)
+    bwd_flat[bwd_idx] = 1
+    return fwd_flat.reshape(U, M), bwd_flat.reshape(U, M)
 
 
 def train_epoch(model,
@@ -75,15 +67,13 @@ def train_epoch(model,
     fwd_mask = torch.tensor(fwd_np, dtype=torch.int, device=device)
     bwd_mask = torch.tensor(bwd_np, dtype=torch.int, device=device)
 
-    X_in = X_features_all_users_UxM * fwd_mask
-
-    y_hat_all_users = model(X_in)  # (U, M)
+    y_hat_all_users = model(X_features_all_users_UxM * fwd_mask)  # (U, M)
 
     total_loss_sum = torch.tensor(0.0, device=device)
     total_count = 0
 
     num_users = X_features_all_users_UxM.shape[0]
-    user_batches = create_user_batches(num_users, batch_size_of_users, shuffle=False)
+    user_batches = create_user_batches(num_users, batch_size_of_users, shuffle=False, device=device)
 
     for user_idx_batch in user_batches:
         preds_batch = y_hat_all_users[user_idx_batch, :]                  # (u_batch, M)
