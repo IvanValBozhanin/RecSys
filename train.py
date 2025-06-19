@@ -12,7 +12,7 @@ from models.gnn_model import MovieLensGNN
 from constants import *
 from utils.testing_utils import test_model
 from utils.val_utils import validate_model
-from utils.training_utils import train_epoch_full_graph
+from utils.training_utils import train_epoch
 from utils.plot_utils import plot_training_validation_performance
 from itertools import product
 from utils.metrics_evaluation_utils import evaluate_beyond_accuracy
@@ -42,8 +42,11 @@ ratings_train_MxU, mask_train_MxU, ratings_val_MxU, mask_val_MxU = split_val_set
 )
 
 # Calculate nTrain - number of samples in training set
+# M = number of movies
+# U = number of users
 nTrain = mask_train_MxU.sum()
-m = ratings_full_MxU.shape[1]  # Number of users
+M, U = ratings_full_MxU.shape
+print(f"Number of users: {U}, Number of movies: {M}")
 
 # Convert to PyTorch Tensors
 ratings_full_pt_MxU = torch.tensor(ratings_full_MxU, dtype=torch.float32, device=device)
@@ -66,21 +69,26 @@ visible_ratings_test_pt_MxU[mask_test_pt_MxU == 0] = 0
 # For training features and targets:
 features_train_pt_UxM, targets_train_norm_pt_UxM, mask_train_loss_pt_UxM, \
 train_user_means, train_user_stds = get_pytorch_normalized_inputs_and_targets(
-    visible_ratings_train_pt_MxU, train_mask_movies_x_users_tensor=mask_train_pt_MxU # Use B_train_active_mask_pt to define known for stats
+    visible_ratings_train_pt_MxU,
+    train_mask_movies_x_users_tensor=mask_train_pt_MxU
 )
 
 # For validation:
-features_val_pt_UxM, targets_val_norm_pt_UxM, mask_val_pt_UxM, \
+features_val_pt_UxM, targets_val_norm_pt_UxM, mask_val_loss_pt_UxM, \
 _, _ = get_pytorch_normalized_inputs_and_targets(
-    visible_ratings_val_pt_MxU, train_mask_movies_x_users_tensor=mask_val_pt_MxU, # Use B_val_active_mask_pt for its known ratings
-    user_means_for_norm=train_user_means, user_stds_for_norm=train_user_stds
+    visible_ratings_val_pt_MxU,
+    train_mask_movies_x_users_tensor=mask_val_pt_MxU,
+    user_means_for_norm=train_user_means,
+    user_stds_for_norm=train_user_stds
 )
 
 # For testing:
 featuers_test_pt_UxM, _, mask_test_pt_UxM, \
 _, _ = get_pytorch_normalized_inputs_and_targets(
-    visible_ratings_test_pt_MxU, train_mask_movies_x_users_tensor=mask_test_pt_MxU, # Use B_test_active_mask_pt for its known ratings
-    user_means_for_norm=train_user_means, user_stds_for_norm=train_user_stds
+    visible_ratings_test_pt_MxU,
+    train_mask_movies_x_users_tensor=mask_test_pt_MxU,
+    user_means_for_norm=train_user_means,
+    user_stds_for_norm=train_user_stds
 )
 
 targets_test_orig_pt_UxM = torch.tensor(ratings_test_MxU.T, dtype=torch.float32, device=device)
@@ -89,18 +97,14 @@ targets_test_orig_pt_UxM = torch.tensor(ratings_test_MxU.T, dtype=torch.float32,
 # --- GSO Calculation ---
 # Use Z_train_feat_users_x_movies (already users x movies, normalized, 0-filled)
 # but compute_user_user_covariance_torch expects movies x users input.
-C_user_user_pt_UxU = compute_user_user_covariance_torch(features_train_pt_UxM.T, cov_type, thr =tau * torch.tensor(np.sqrt(np.log(m) / nTrain)), p = args.p).to(device)
+C_user_user_pt_UxU = compute_user_user_covariance_torch(features_train_pt_UxM.T, cov_type, thr =tau * torch.tensor(np.sqrt(np.log(U) / nTrain)), p = args.p).to(device)
 # C = torch.full_like(C, 0)
 
-threshold_value = tau * torch.tensor(np.sqrt(np.log(m) / nTrain))
+threshold_value = tau * torch.tensor(np.sqrt(np.log(U) / nTrain))
 sparsity = (C_user_user_pt_UxU == 0).sum().item() / C_user_user_pt_UxU.numel()
 print(C_user_user_pt_UxU.max(), C_user_user_pt_UxU.min(), C_user_user_pt_UxU.mean(), C_user_user_pt_UxU.std())
 
 print(f"Computed GSO with threshold {threshold_value:.4f}, sparsity: {sparsity:.4%}")
-print(f"sparcity: {sparsity:.4}")
-
-U, M = features_train_pt_UxM.shape
-print(f"Number of users: {U}, Number of movies: {M}")
 
 # --- Hyperparameter Search Loop (largely unchanged from previous good version) ---
 GNN_dimNodeSignals_options = [
@@ -126,20 +130,21 @@ for dimNodeSignals, GNN_numTaps, MLP_layerDims in product(GNN_dimNodeSignals_opt
     final_epoch_val_loss = float('inf')
 
     for epoch in range(n_epochs):
-        epoch_train_loss = train_epoch_full_graph(
-                                        gnn_model, optimizer,
+        epoch_train_loss = train_epoch(
+                                        gnn_model,
+                                        optimizer,
                                         features_train_pt_UxM,
                                         targets_train_norm_pt_UxM,
-                                        mask_train_loss_pt_UxM, # This is the mask of *known training ratings*
+                                        mask_train_loss_pt_UxM,
                                         loss_fn, batch_size, device
                                         )
         current_epoch_train_losses.append(epoch_train_loss)
 
         final_epoch_val_loss = validate_model(
                                     gnn_model,
-                                    features_val_pt_UxM, # Input features for val users
-                                    targets_val_norm_pt_UxM, # Ground truth for val users
-                                    mask_val_pt_UxM, # Mask of *known validation ratings*
+                                    features_val_pt_UxM,
+                                    targets_val_norm_pt_UxM,
+                                    mask_val_loss_pt_UxM,
                                     loss_fn, batch_size, device
                                     )
         current_epoch_val_losses.append(final_epoch_val_loss)

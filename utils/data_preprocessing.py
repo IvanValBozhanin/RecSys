@@ -1,5 +1,4 @@
 import sys
-# prepend the path to the parent directory
 sys.path.append('../')
 
 
@@ -121,7 +120,6 @@ def normalize_and_fill_set(X_set, user_means, user_stds):
 
 def get_pytorch_normalized_inputs_and_targets(
         X0_movies_x_users_tensor: torch.Tensor,  # Original full ratings tensor
-        # B0_mask_movies_x_users_tensor: torch.Tensor,  # Original full mask
         train_mask_movies_x_users_tensor: torch.Tensor,  # Mask for ratings in this specific (train/val) set
         user_means_for_norm: torch.Tensor = None,  # Optional: For val/test
         user_stds_for_norm: torch.Tensor = None  # Optional: For val/test

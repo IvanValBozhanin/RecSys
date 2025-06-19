@@ -23,7 +23,7 @@ def validate_model(model,
     total_masked_elements = 0
 
     with torch.no_grad():
-        # Model processes all validation users' features
+
         y_hat_all_val_users = model(X_features_val_users)
 
         batches_user_indices = create_user_batches_val(X_features_val_users.shape[0], batch_size_of_users)
@@ -36,7 +36,7 @@ def validate_model(model,
             predictions_masked = y_hat_batch * mask_batch
             targets_masked = targets_batch * mask_batch
 
-            batch_loss = loss_fn(predictions_masked, targets_masked)  # loss_fn uses reduction='sum'
+            batch_loss = loss_fn(predictions_masked, targets_masked)
 
             num_elements_in_loss = mask_batch.sum().item()
             if num_elements_in_loss > 0:

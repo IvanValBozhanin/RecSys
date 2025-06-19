@@ -33,8 +33,8 @@ def plot_training_validation_performance(train_losses, val_losses, n_epochs, sav
     os.makedirs(save_dir, exist_ok=True)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(range(1, n_epochs + 1), train_losses, label='Training Loss')
-    plt.plot(range(1, n_epochs + 1), val_losses, label='Validation Loss')
+    plt.plot(range(10, n_epochs + 1), train_losses[9:], label='Training Loss')
+    plt.plot(range(10, n_epochs + 1), val_losses[9:], label='Validation Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.yscale("log")
