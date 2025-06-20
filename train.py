@@ -16,6 +16,9 @@ from utils.training_utils import train_epoch
 from utils.plot_utils import plot_training_validation_performance
 from itertools import product
 from utils.metrics_evaluation_utils import evaluate_beyond_accuracy
+import Modules.architectures as archit
+import Utils.graphML as gml
+
 
 args = parse_args()
 
@@ -26,7 +29,9 @@ torch.manual_seed(seed)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}.")
 
-file_path = 'ml-latest-small/ratings.csv'
+# file_path = 'ml-latest-small/ratings.csv'
+file_path = 'ml-latest-small/ml-100k/u_csv.csv'
+
 
 cov_type = args.cov_type
 tau = args.tau
@@ -110,10 +115,10 @@ print(f"Computed GSO with threshold {threshold_value:.4f}, sparsity: {sparsity:.
 GNN_dimNodeSignals_options = [
     # [num_movies, 256, 512],
     # [num_movies, 128, 512],
-    [M, 512, 512]
+    [M, 1024, 1024]
 ]
-GNN_numTaps_options = [2]
-MLP_layerDims_options = [[512, 1024, M]]
+GNN_numTaps_options = [[2, 2]]
+MLP_layerDims_options = [[1024, 1024, M]]
 
 best_hyperparams_tuple = (GNN_dimNodeSignals_options[0], GNN_numTaps_options[0], MLP_layerDims_options[0])
 best_val_loss = float('inf')
@@ -123,7 +128,17 @@ for dimNodeSignals, GNN_numTaps, MLP_layerDims in product(GNN_dimNodeSignals_opt
     current_epoch_train_losses, current_epoch_val_losses = [], []
     print(f"Training with hyperparameters: GNN Layers: {dimNodeSignals}, Taps: {GNN_numTaps}, MLP Layers: {MLP_layerDims}")
 
-    gnn_model = MovieLensGNN(C_user_user_pt_UxU, M, dimNodeSignals, GNN_numTaps, MLP_layerDims, U).to(device)
+    # gnn_model = MovieLensGNN(C_user_user_pt_UxU, M, dimNodeSignals, GNN_numTaps, MLP_layerDims, U).to(device)
+    gnn_model = archit.SelectionGNN(dimNodeSignals,
+                                    GNN_numTaps,
+                                    True,
+                                    nn.LeakyReLU,
+                                    [U] * len(GNN_numTaps),
+                                    gml.NoPool,
+                                    [1] * len(GNN_numTaps),
+                                    MLP_layerDims,
+                                    C_user_user_pt_UxU
+                                    )
     optimizer = optim.Adam(gnn_model.parameters(), lr=lr)
     loss_fn = nn.MSELoss(reduction='sum')
 
@@ -170,11 +185,11 @@ gnn_model_best = MovieLensGNN(C_user_user_pt_UxU, M,
 gnn_model_best.load_state_dict(torch.load('best_model.pth'))
 
 test_model(gnn_model_best,
-           featuers_test_pt_UxM,  # Input features for test (normalized train context)
-           targets_test_orig_pt_UxM,  # Original scale targets
-           mask_test_pt_UxM,  # Mask of *known test ratings*
-           train_user_means.cpu().numpy(),  # Ensure numpy for denormalization
-           train_user_stds.cpu().numpy(),  # Ensure numpy for denormalization
+           featuers_test_pt_UxM,
+           targets_test_orig_pt_UxM,
+           mask_test_pt_UxM,
+           train_user_means.cpu().numpy(),
+           train_user_stds.cpu().numpy(),
            device)
 
 # --- Beyond-Accuracy Metric Evaluation ---
@@ -203,15 +218,15 @@ eval_user_array_indices = np.where(mask_test_MxU.sum(axis=0) > 0)[0]
 
 if len(eval_user_array_indices) == 0:
     print("No users found with items in the test set for beyond-accuracy evaluation.")
-# else:
-    # evaluate_beyond_accuracy(
-    #     model=gnn_model_best,
-    #     X_features_all_users_pt=Z_train_feat_users_x_movies.to(device),
-    #     eval_user_array_indices=eval_user_array_indices,
-    #     B_train_history_mask_movies_x_users_np=B_train_known_movies_x_users_np,
-    #     X_eval_targets_orig_movies_x_users_np=X_test_orig_movies_x_users_np,
-    #     B_eval_target_mask_movies_x_users_np=B_test_movies_x_users_np,
-    #     idx_to_movie_id_map=internal_idx_to_original_movie_id_map, # USE THIS
-    #     top_n=TOP_N_RECOMMENDATIONS,
-    #     device=device
-    # )
+else:
+    evaluate_beyond_accuracy(
+        model=gnn_model_best,
+        X_features_all_users_pt=Z_train_feat_users_x_movies.to(device),
+        eval_user_array_indices=eval_user_array_indices,
+        B_train_history_mask_movies_x_users_np=B_train_known_movies_x_users_np,
+        X_eval_targets_orig_movies_x_users_np=X_test_orig_movies_x_users_np,
+        B_eval_target_mask_movies_x_users_np=B_test_movies_x_users_np,
+        idx_to_movie_id_map=internal_idx_to_original_movie_id_map, # USE THIS
+        top_n=TOP_N_RECOMMENDATIONS,
+        device=device
+    )
