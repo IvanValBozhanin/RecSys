@@ -15,45 +15,66 @@ def create_user_batches_test(num_total_users,
 
 
 def test_model(model,
-               X_features_test_users,  # (num_test_users, num_movies_features) - context
-               X_targets_test_users_original,  # (num_test_users, num_movies_targets) - original scale
-               B_mask_test_users,  # (num_test_users, num_movies_mask)
-               user_means_np,
-               user_stds_np,
-               device):  # Make sure these are 1D numpy arrays of length num_users
+               X_features_test_users,  # (num_users, num_movies) - test context
+               X_targets_test_users_original,  # (num_users, num_movies) - original scale targets
+               B_mask_test_users,  # (num_users, num_movies) - test mask
+               user_means_np,  # (num_users,) - user means for denormalization
+               user_stds_np,  # (num_users,) - user stds for denormalization
+               device):
+    """
+    Test the SelectionGNN model on the test set.
+
+    Args:
+        model: SelectionGNN model
+        X_features_test_users: Test features (num_users, num_movies)
+        X_targets_test_users_original: Original scale test targets (num_users, num_movies)
+        B_mask_test_users: Test mask indicating which ratings to evaluate (num_users, num_movies)
+        user_means_np: User means for denormalization (num_users,)
+        user_stds_np: User stds for denormalization (num_users,)
+        device: PyTorch device
+
+    Returns:
+        RMSE on test set
+    """
     model.eval()
 
     all_predictions_denorm_list = []
     all_actuals_orig_list = []
 
     with torch.no_grad():
-        # Model processes all test users' features
-        y_hat_all_test_users_norm = model(X_features_test_users)  # Output: (num_test_users, num_movies)
+        # Prepare input for SelectionGNN
+        # SelectionGNN expects (batch_size, num_features, num_nodes)
+        # We have (num_users, num_movies), need to transpose to (num_movies, num_users)
+        # and add batch dimension: (1, num_movies, num_users)
+        gnn_input = X_features_test_users.T.unsqueeze(0)  # (1, num_movies, num_users)
 
-        # Denormalize predictions
-        # denormalize_ratings_user_x_movie needs to handle (num_users, num_movies)
-        # and user_means/stds being (num_users,)
+        # Forward pass through SelectionGNN
+        # Output shape: (1, num_users * num_movies) since average=False
+        gnn_output = model(gnn_input)  # (1, num_users * num_movies)
+
+        # Reshape output back to (num_users, num_movies)
+        num_users, num_movies = X_features_test_users.shape
+        y_hat_test_users_norm = gnn_output.reshape(num_users, num_movies)
+
+        # Denormalize predictions to original scale
         predictions_denorm = denormalize_ratings_user_x_movie(
-            y_hat_all_test_users_norm.cpu().numpy(),
-            user_means_np,  # Should be (num_users,)
-            user_stds_np  # Should be (num_users,)
+            y_hat_test_users_norm.cpu().numpy(),
+            user_means_np,  # (num_users,)
+            user_stds_np  # (num_users,)
         )
 
-        # Iterate through users to apply mask (or vectorize if careful)
-        for i in range(X_targets_test_users_original.shape[0]):  # Iterate over users
-            user_preds_denorm = predictions_denorm[i, :]
-            user_actuals_orig = X_targets_test_users_original[i, :].cpu().numpy()  # if tensor
-            user_mask = B_mask_test_users[i, :].cpu().numpy()  # if tensor
+        # Extract predictions and actuals only for test items (where mask == 1)
+        test_mask_np = B_mask_test_users.cpu().numpy()
+        test_targets_np = X_targets_test_users_original.cpu().numpy()
 
-            relevant_preds = user_preds_denorm[user_mask == 1]
-            relevant_actuals = user_actuals_orig[user_mask == 1]
+        # Get indices where test mask is 1
+        test_indices = np.where(test_mask_np == 1)
 
-            all_predictions_denorm_list.extend(relevant_preds.tolist())
-            all_actuals_orig_list.extend(relevant_actuals.tolist())
+        # Extract corresponding predictions and actuals
+        test_predictions_flat = predictions_denorm[test_indices]
+        test_actuals_flat = test_targets_np[test_indices]
 
-    test_predictions_flat = np.array(all_predictions_denorm_list)
-    test_actuals_flat = np.array(all_actuals_orig_list)
-
+    # Calculate RMSE only on test samples
     if len(test_actuals_flat) == 0:
         print("No test items to evaluate!")
         return float('nan')
@@ -61,9 +82,10 @@ def test_model(model,
     rmse = np.sqrt(np.mean(np.square(test_predictions_flat - test_actuals_flat)))
 
     print(f"Test RMSE on 1-5 scale: {rmse:.4f}")
-    print(f"test_rmse {rmse:.4f}" )
-    # print(f"Predictions (sample): {test_predictions_flat[:20]}")
-    # print(f"Actuals (sample): {test_actuals_flat[:20]}")
+    print(f"Number of test samples: {len(test_actuals_flat)}")
+    print(f"test_rmse {rmse:.4f}")
 
+    # Plot predictions vs actuals
     plot_predictions_vs_actuals(test_predictions_flat, test_actuals_flat)
+
     return rmse

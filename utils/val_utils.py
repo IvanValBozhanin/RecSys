@@ -1,48 +1,38 @@
 import torch
-import numpy as np
-
-
-def create_user_batches_val(num_total_users,
-                            batch_size_of_users):
-    user_indices = np.arange(num_total_users)
-    batches_of_user_indices = []
-    for i in range(0, num_total_users, batch_size_of_users):
-        batches_of_user_indices.append(user_indices[i: i + batch_size_of_users])
-    return batches_of_user_indices
+from utils.training_utils import validate_epoch
 
 
 def validate_model(model,
-                   X_features_val_users,  # (num_val_users, num_movies_features) - context
-                   Y_targets_val_users_norm,  # (num_val_users, num_movies_targets) - ground truth
-                   B_loss_mask_val_users,  # (num_val_users, num_movies_mask)
+                   X_features_all_users_UxM,
+                   Y_targets_all_users_norm_UxM,
+                   B_val_mask_all_users_UxM,
                    loss_fn,
                    batch_size_of_users,
                    device):
-    model.eval()
-    total_val_loss = 0.0
-    total_masked_elements = 0
+    """
+    Validate the model on the validation set.
 
-    with torch.no_grad():
+    This is a wrapper around validate_epoch to maintain consistency
+    with the existing codebase.
 
-        y_hat_all_val_users = model(X_features_val_users)
+    Args:
+        model: SelectionGNN model
+        X_features_all_users_UxM: Input features (num_users, num_movies)
+        Y_targets_all_users_norm_UxM: Normalized target ratings (num_users, num_movies)
+        B_val_mask_all_users_UxM: Validation mask (num_users, num_movies)
+        loss_fn: Loss function
+        batch_size_of_users: Batch size for processing users
+        device: PyTorch device
 
-        batches_user_indices = create_user_batches_val(X_features_val_users.shape[0], batch_size_of_users)
-
-        for user_idx_batch in batches_user_indices:
-            y_hat_batch = y_hat_all_val_users[user_idx_batch, :]
-            targets_batch = Y_targets_val_users_norm[user_idx_batch, :]
-            mask_batch = B_loss_mask_val_users[user_idx_batch, :]
-
-            predictions_masked = y_hat_batch * mask_batch
-            targets_masked = targets_batch * mask_batch
-
-            batch_loss = loss_fn(predictions_masked, targets_masked)
-
-            num_elements_in_loss = mask_batch.sum().item()
-            if num_elements_in_loss > 0:
-                total_val_loss += batch_loss.item()
-                total_masked_elements += num_elements_in_loss
-
-    if total_masked_elements == 0:
-        return float('inf')
-    return total_val_loss / total_masked_elements
+    Returns:
+        Average validation loss
+    """
+    return validate_epoch(
+        model,
+        X_features_all_users_UxM,
+        Y_targets_all_users_norm_UxM,
+        B_val_mask_all_users_UxM,
+        loss_fn,
+        batch_size_of_users,
+        device
+    )
