@@ -108,3 +108,9 @@ def compute_user_user_covariance_torch(
     C = (Z_features_movies_x_users.t() @ Z_features_movies_x_users) / n_items * 100.0
     C_sparse = sparsify_covariance(C, cov_type, thr, p)
     return C_sparse
+
+
+def compute_user_user_precision_torch(C, U):
+    identity = torch.eye(U) * 1e-8
+    precision = torch.linalg.inv(C.cpu() + identity)
+    return precision.clamp(-10, 10)

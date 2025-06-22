@@ -7,7 +7,7 @@ import pandas as pd
 from Utils.miscTools import parse_args
 from utils.data_preprocessing import load_movielens_data, normalize_and_fill_user_movie_matrix, split_test_set, \
     split_val_set, normalize_and_fill_set, get_pytorch_normalized_inputs_and_targets
-from utils.covariance_utils import compute_user_user_covariance_torch
+from utils.covariance_utils import compute_user_user_covariance_torch, compute_user_user_precision_torch
 import Modules.architectures as archit
 import Utils.graphML as gml
 from constants import *
@@ -134,6 +134,10 @@ sparsity = (C_user_user_pt_UxU == 0).sum().item() / C_user_user_pt_UxU.numel()
 print(f"GSO stats - Max: {C_user_user_pt_UxU.max():.4f}, Min: {C_user_user_pt_UxU.min():.4f}")
 print(f"GSO stats - Mean: {C_user_user_pt_UxU.mean():.4f}, Std: {C_user_user_pt_UxU.std():.4f}")
 print(f"Computed GSO with threshold {threshold_value:.4f}, sparsity: {sparsity:.4%}")
+
+print(C_user_user_pt_UxU)
+P_user_user_pt_UxU = compute_user_user_precision_torch(C_user_user_pt_UxU, U)
+print(P_user_user_pt_UxU)
 
 # Precompute metrics needed for multi-objective training
 print("Precomputing popularity and dissimilarity matrices for multi-objective training...")
