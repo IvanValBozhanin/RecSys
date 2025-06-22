@@ -560,6 +560,5 @@ for seed, gso, sparse_type in grid:
         'elapsed_sec'
     ]
     df = df[[c for c in ordered_cols if c in df.columns]]
-    # df.to_csv('no_bam_svnn_grid_results.csv', index=False)
+    df.to_csv('no_bam_svnn_grid_results.csv', index=False)
     # df.to_csv('naive_grid_results.csv', index=False) # same, but ran with 1 epoch
-    df.to_csv('rand_grid_results.csv', index=False)     # same, but 1 epoch, random GSO
