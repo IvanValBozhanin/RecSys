@@ -35,9 +35,9 @@ from utils.metrics_evaluation_utils import (
 )
 
 
-seeds        = [10, 16, 42, 2025, 12345]     # 5 independent runs
-gso_types    = ["cov", "prec"]                   # covariance or precision
-sparsif_opts = ['standard', "hard_thr", "soft_thr"] # dense vs hard thr vs soft thr
+seeds        = [10]#, 16, 42, 2025, 12345]     # 5 independent runs
+gso_types    = ["cov"]#, "prec"]                   # covariance or precision
+sparsif_opts = ['standard']#, "hard_thr", "soft_thr"] # dense vs hard thr vs soft thr
 
 grid = itertools.product(seeds, gso_types, sparsif_opts)
 all_results = []
@@ -49,9 +49,9 @@ np.random.seed(seed)
 torch.manual_seed(seed)
 
 # Multi-objective training hyperparameters
-lambda_rmse = 0.7    # Weight for RMSE loss
-lambda_novelty = 0.15  # Weight for novelty loss
-lambda_diversity = 0.15  # Weight for diversity loss
+lambda_rmse = 0.4    # Weight for RMSE loss
+lambda_novelty = 0.3  # Weight for novelty loss
+lambda_diversity = 0.3  # Weight for diversity loss
 # Note: lambda_rmse + lambda_novelty + lambda_diversity should = 1.0
 
 # Recommendation cutoff for BAM computation during training

@@ -1,4 +1,4 @@
-n_epochs = 1 # todo: try 50 - 100.
+n_epochs = 100 # todo: try 50 - 100.
 batch_size = 256
 lr = 0.001
 forward_ratio = 0.8
