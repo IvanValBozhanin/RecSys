@@ -1,0 +1,2 @@
+seed,gso_type,sparsify,rmse,mean_diversity,mean_novelty,elapsed_sec
+10,cov,standard,0.97852206,0.8505938867832056,0.9788120535200102,11.38100266456604

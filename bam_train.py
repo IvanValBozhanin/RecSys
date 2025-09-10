@@ -48,10 +48,6 @@ args = parse_args()
 np.random.seed(seed)
 torch.manual_seed(seed)
 
-# Multi-objective training hyperparameters
-lambda_rmse = 0.4    # Weight for RMSE loss
-lambda_novelty = 0.3  # Weight for novelty loss
-lambda_diversity = 0.3  # Weight for diversity loss
 # Note: lambda_rmse + lambda_novelty + lambda_diversity should = 1.0
 
 # Recommendation cutoff for BAM computation during training

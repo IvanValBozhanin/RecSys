@@ -145,8 +145,9 @@ for seed, gso, sparse_type in grid:
         C_user_user_pt_UxU = compute_user_user_precision_torch(C_user_user_pt_UxU, U)
     # print(P_user_user_pt_UxU)
 
-    # fill the matrix with random values - 0 to 0.1
-    C_user_user_pt_UxU = torch.rand_like(C_user_user_pt_UxU)
+    # For RANDOM GSO testing only
+    # # fill the matrix with random values - 0 to 0.1
+    # C_user_user_pt_UxU = torch.rand_like(C_user_user_pt_UxU)
 
     threshold_value = tau * torch.tensor(np.sqrt(np.log(U) / nTrain))
     sparsity = (C_user_user_pt_UxU == 0).sum().item() / C_user_user_pt_UxU.numel()

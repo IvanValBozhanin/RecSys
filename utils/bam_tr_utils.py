@@ -202,29 +202,16 @@ def compute_bam_losses(predictions_UxM, mask_UxM, p_scores_pt, C_hybrid_pt, N, d
     """
     Compute novelty and diversity losses for multi-objective training.
 
-    Args:
-        predictions_UxM: Model predictions (U, M)
-        mask_UxM: Training mask for this batch (U, M)
-        p_scores_pt: Popularity scores tensor (M,)
-        C_hybrid_pt: Hybrid dissimilarity matrix (M, M)
-        N: Top-N cutoff for recommendations
-        device: PyTorch device
-
-    Returns:
-        novelty_loss: Tensor scalar (lower novelty = higher loss)
-        diversity_loss: Tensor scalar (lower diversity = higher loss)
+    CORRECTED: Returns (1 - novelty) and (1 - diversity) as per thesis equations
     """
     U, M = predictions_UxM.shape
-
     novelty_losses = []
     diversity_losses = []
 
     for u in range(U):
-        # Get user's predictions and mask
-        user_preds = predictions_UxM[u]  # (M,)
-        user_mask = mask_UxM[u]  # (M,)
+        user_preds = predictions_UxM[u]
+        user_mask = mask_UxM[u]
 
-        # Only consider items in the training mask for this user
         if user_mask.sum() == 0:
             continue
 
@@ -235,12 +222,14 @@ def compute_bam_losses(predictions_UxM, mask_UxM, p_scores_pt, C_hybrid_pt, N, d
         if len(top_indices) < 2:
             continue
 
-        # Compute novelty loss (we want to maximize novelty, so minimize negative novelty)
+        # Compute novelty: Nov = (1/N) * Σ(1 - p(i))
         top_popularities = p_scores_pt[top_indices]
-        novelty = torch.mean(1.0 - top_popularities)  # Average of (1 - popularity)
-        novelty_loss = -novelty  # Negative because we want to maximize novelty
+        novelty = torch.mean(1.0 - top_popularities)
 
-        # Compute diversity loss (we want to maximize diversity, so minimize negative diversity)
+        # NOV Loss = (1 - Nov) as per thesis equation
+        novelty_loss = 1.0 - novelty
+
+        # Compute diversity: ILD = average pairwise dissimilarity
         if len(top_indices) >= 2:
             diversity_sum = 0.0
             pair_count = 0
@@ -249,9 +238,11 @@ def compute_bam_losses(predictions_UxM, mask_UxM, p_scores_pt, C_hybrid_pt, N, d
                     diversity_sum += C_hybrid_pt[top_indices[i], top_indices[j]]
                     pair_count += 1
             diversity = diversity_sum / pair_count if pair_count > 0 else 0.0
-            diversity_loss = -diversity  # Negative because we want to maximize diversity
+
+            # DIV Loss = (1 - Div) as per thesis equation
+            diversity_loss = 1.0 - diversity
         else:
-            diversity_loss = torch.tensor(0.0, device=device)
+            diversity_loss = torch.tensor(1.0, device=device)  # Maximum penalty if <2 items
 
         novelty_losses.append(novelty_loss)
         diversity_losses.append(diversity_loss)
@@ -261,7 +252,7 @@ def compute_bam_losses(predictions_UxM, mask_UxM, p_scores_pt, C_hybrid_pt, N, d
         avg_novelty_loss = torch.stack(novelty_losses).mean()
         avg_diversity_loss = torch.stack(diversity_losses).mean()
     else:
-        avg_novelty_loss = torch.tensor(0.0, device=device)
-        avg_diversity_loss = torch.tensor(0.0, device=device)
+        avg_novelty_loss = torch.tensor(1.0, device=device)  # Maximum penalty
+        avg_diversity_loss = torch.tensor(1.0, device=device)
 
     return avg_novelty_loss, avg_diversity_loss
